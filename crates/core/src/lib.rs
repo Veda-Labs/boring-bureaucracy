@@ -1,5 +1,5 @@
-use alloy::primitives::{Bytes, U256};
-use alloy::{sol, sol_types::SolCall};
+use alloy::primitives::{Address, Bytes, U256};
+use alloy::{providers::ProviderBuilder, sol, sol_types::SolCall};
 use dotenv::dotenv;
 use eyre::Result;
 use hex;
@@ -12,6 +12,18 @@ sol! {
     #[sol(rpc)]
     contract GnosisSafe {
         function execTransactionFromModule(address to, uint256 value, bytes memory data, uint8 operation);
+        function getTransactionHash(
+            address to,
+            uint256 value,
+            bytes calldata data,
+            uint8 operation,
+            uint256 safeTxGas,
+            uint256 baseGas,
+            uint256 gasPrice,
+            address gasToken,
+            address refundReceiver,
+            uint256 _nonce
+        ) public view returns (bytes32);
     }
 }
 
@@ -23,6 +35,7 @@ struct SimulationConfig {
     value: String,
     data: String,
     operation: String,
+    nonce: u64,
 }
 
 fn read_simulation_config(file_path: &str) -> Result<SimulationConfig> {
@@ -37,8 +50,46 @@ pub async fn run_simulation() -> Result<()> {
     let api_key = env::var("TENDERLY_ACCESS_KEY")?;
     let account_slug = env::var("TENDERLY_ACCOUNT_SLUG")?;
     let project_slug = env::var("TENDERLY_PROJECT_SLUG")?;
+    let eth_rpc = env::var("MAINNET_RPC_URL")?;
 
     let config = read_simulation_config("admin_tx.json")?;
+
+    // Calculate safe hash
+    let safe_tx_gas = U256::ZERO;
+    let base_gas = U256::ZERO;
+    let gas_price = U256::ZERO;
+    let gas_token = Address::ZERO;
+    let refund_receiver = Address::ZERO;
+
+    let safe_address = config.multisig.parse().expect("Failed to parse to");
+    let to_address = config.to.parse().expect("Failed to parse to");
+    let value = U256::from(config.value.parse::<U256>().expect("Failed to parse value"));
+    let data = Bytes::from(config.data.parse::<Bytes>().expect("Failed to parse data"));
+    let operation = config.operation.parse().expect("Failed to parse operation");
+
+    // Call getTransactionHash
+    let provider = ProviderBuilder::new().on_builtin(&eth_rpc).await?;
+
+    let safe = GnosisSafe::new(safe_address, provider);
+
+    let safe_hash = safe
+        .getTransactionHash(
+            to_address,
+            value,
+            data.clone(),
+            operation,
+            safe_tx_gas,
+            base_gas,
+            gas_price,
+            gas_token,
+            refund_receiver,
+            U256::from(config.nonce),
+        )
+        .call()
+        .await?
+        ._0;
+
+    println!("Safe Hash: {}", safe_hash);
 
     let from_address = "0xe2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2";
     // TOOD should chagne state of config.multisig
@@ -54,9 +105,9 @@ pub async fn run_simulation() -> Result<()> {
 
     // Build input.
     let input = GnosisSafe::execTransactionFromModuleCall::new((
-        config.to.parse().expect("Failed to parse to"),
-        U256::from(config.value.parse::<U256>().expect("Failed to parse value")),
-        Bytes::from(config.data.parse::<Bytes>().expect("Failed to parse data")),
+        to_address,
+        value,
+        data,
         config.operation.parse().expect("Failed to parse operation"),
     ))
     .abi_encode();
