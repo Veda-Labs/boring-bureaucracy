@@ -27,3 +27,7 @@ alloy = { version = "0.11.1", features = [
 
 # Hex handling
 hex = "0.4.3"
+
+
+# TOML
+toml = "0.8.20"

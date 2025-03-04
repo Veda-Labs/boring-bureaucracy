@@ -7,6 +7,7 @@ use reqwest::Client;
 use serde::Deserialize;
 use serde_json::json;
 use std::{env, fs};
+use toml::Value;
 
 sol! {
     #[sol(rpc)]
@@ -44,15 +45,32 @@ fn read_simulation_config(file_path: &str) -> Result<SimulationConfig> {
     Ok(config)
 }
 
+fn get_rpc_url(network_id: &str) -> Result<String> {
+    let config_content = fs::read_to_string("config.toml")?;
+    let config: Value = config_content.parse::<Value>()?;
+
+    let url_value = &config["rpc_endpoints"][network_id];
+    let url_str = url_value
+        .as_str()
+        .ok_or_else(|| eyre::eyre!("URL not found for network_id: {}", network_id))?;
+
+    if url_str.starts_with("env:") {
+        let env_var = &url_str[4..];
+        env::var(env_var).map_err(|_| eyre::eyre!("Environment variable {} not set", env_var))
+    } else {
+        Ok(url_str.to_string())
+    }
+}
+
 pub async fn run_simulation() -> Result<()> {
     dotenv().ok(); // Load environment variables from .env file
 
     let api_key = env::var("TENDERLY_ACCESS_KEY")?;
     let account_slug = env::var("TENDERLY_ACCOUNT_SLUG")?;
     let project_slug = env::var("TENDERLY_PROJECT_SLUG")?;
-    let eth_rpc = env::var("MAINNET_RPC_URL")?;
 
     let config = read_simulation_config("admin_tx.json")?;
+    let rpc_url = get_rpc_url(&config.network_id)?;
 
     // Calculate safe hash
     let safe_tx_gas = U256::ZERO;
@@ -68,7 +86,7 @@ pub async fn run_simulation() -> Result<()> {
     let operation = config.operation.parse().expect("Failed to parse operation");
 
     // Call getTransactionHash
-    let provider = ProviderBuilder::new().on_builtin(&eth_rpc).await?;
+    let provider = ProviderBuilder::new().on_builtin(&rpc_url).await?;
 
     let safe = GnosisSafe::new(safe_address, provider);
 
