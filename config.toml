@@ -1,3 +1,45 @@
 [rpc_endpoints]
 1 = "env:MAINNET_RPC_URL"
 60808 = "https://rpc.gobob.xyz/"
+146 = "https://rpc.soniclabs.com"
+
+
+# Product Configuration
+[product.liquid_eth.default]
+multisig_address = "0xCEA8039076E35a825854c5C2f85659430b06ec96"
+vault_address = "0xf0bb20865277aBd641a307eCe5Ee04E79073416C"
+manager_address = "0xdea7af4a96a762c9d43a7ee02acecd20a3c6d8b6"
+accountant_address = "0x0d05D94a5F1E76C18fbeB7A13d17C8a314088198"
+teller_address = "0x5c135e8eC99557b412b9B4492510dCfBD36066F5"
+roles_authority_address = "0xd83C1C5050f73bbaaa2036F2e0D73163D180C123"
+timelock_address = "0xCAN_BE_ZERO"
+strategists = [
+    "0x41DFc53B13932a2690C9790527C1967d8579a6ae",
+    "0x71E2d6c34f569cC4Df5802d675B208FB8AE3Bcd6",
+]
+
+[product.sc_eth.1]
+multisig_address = "0xB77d74f032CfE55190325474E061052685CEccc0"
+vault_address = "0x3bcE5CB273F0F148010BbEa2470e7b5df84C7812"
+manager_address = "0x6830046d872604E92f9F95F225fF63f2300bc1e9"
+accountant_address = "0x3a592F9Ea2463379c4154d03461A73c484993668"
+teller_address = "0x31A5A9F60Dc3d62fa5168352CaF0Ee05aA18f5B8"
+roles_authority_address = "0xA7F4Aec487ca3F3A9b5ADDC058daFD4644725902"
+timelock_address = "0x4D55C111058Df989dDA24c8A101F8Bd69b730a73"
+strategists = [
+    "0x8D3e2ede20B3Bbe781C88Bdaf472E1e265f38Db8",
+    "0x7Ad69d482b56062b6e76D6e645FC5bFCB97C93b5",
+]
+
+[product.sc_eth.146]
+multisig_address = "0x948dd9351D3721489Fe7A4530C55849cF0b4735D"
+vault_address = "0x3bcE5CB273F0F148010BbEa2470e7b5df84C7812"
+manager_address = "0x6830046d872604E92f9F95F225fF63f2300bc1e9"
+accountant_address = "0x3a592F9Ea2463379c4154d03461A73c484993668"
+teller_address = "0x31A5A9F60Dc3d62fa5168352CaF0Ee05aA18f5B8"
+roles_authority_address = "0xA7F4Aec487ca3F3A9b5ADDC058daFD4644725902"
+timelock_address = "0x4D55C111058Df989dDA24c8A101F8Bd69b730a73"
+strategists = [
+    "0xB26AEb430b5Bf6Be55763b42095E82DB9a1838B8",
+    "0xE89CeE9837e6Fce3b1Ebd8E1C779b76fd6E20136",
+]
