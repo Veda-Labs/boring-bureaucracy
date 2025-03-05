@@ -1,4 +1,5 @@
-use alloy::primitives::{Address, Bytes, FixedBytes, U256};
+use GnosisSafe::GnosisSafeInstance;
+use alloy::primitives::{Address, Bytes, FixedBytes, U256, address};
 use alloy::{providers::ProviderBuilder, sol, sol_types::SolCall};
 use dotenv::dotenv;
 use eyre::Result;
@@ -54,6 +55,8 @@ sol! {
     }
 }
 
+const MULTISEND_ADDRESS: Address = address!("40A2aCCbd92BCA938b02010E17A5b8929b49130D");
+
 #[derive(Serialize, Deserialize)]
 pub struct SimulationConfig {
     pub network_id: u32,
@@ -98,42 +101,15 @@ pub async fn simulate_admin_tx_and_generate_safe_hash(
     let project_slug = env::var("TENDERLY_PROJECT_SLUG")?;
 
     let config = read_simulation_config(admin_tx_path)?;
-    let rpc_url = get_rpc_url(config.network_id)?;
-
-    // Calculate safe hash
-    let safe_tx_gas = U256::ZERO;
-    let base_gas = U256::ZERO;
-    let gas_price = U256::ZERO;
-    let gas_token = Address::ZERO;
-    let refund_receiver = Address::ZERO;
-
-    let safe_address = config.multisig.parse().expect("Failed to parse to");
-    let to_address = config.to.parse().expect("Failed to parse to");
-    let value = U256::from(config.value.parse::<U256>().expect("Failed to parse value"));
-    let data = Bytes::from(config.data.parse::<Bytes>().expect("Failed to parse data"));
-    let operation = config.operation;
 
     // Call getTransactionHash
+    let rpc_url = get_rpc_url(config.network_id)?;
     let provider = ProviderBuilder::new().on_builtin(&rpc_url).await?;
-
+    let safe_address = config.multisig.parse().expect("Failed to parse to");
     let safe = GnosisSafe::new(safe_address, provider);
 
-    let safe_hash = safe
-        .getTransactionHash(
-            to_address,
-            value,
-            data.clone(),
-            operation,
-            safe_tx_gas,
-            base_gas,
-            gas_price,
-            gas_token,
-            refund_receiver,
-            U256::from(config.nonce),
-        )
-        .call()
-        .await?
-        ._0;
+    let (safe_hash, to_address, value, data, operation) =
+        generate_safe_hash_and_return_params(&safe, &config).await?;
 
     let from_address = "0xe2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2";
     let state_objects = json!({
@@ -148,7 +124,7 @@ pub async fn simulate_admin_tx_and_generate_safe_hash(
 
     // Build input.
     let input =
-        GnosisSafe::execTransactionFromModuleCall::new((to_address, value, data, config.operation))
+        GnosisSafe::execTransactionFromModuleCall::new((to_address, value, data, operation))
             .abi_encode();
 
     let input_hex = hex::encode(input);
@@ -187,8 +163,66 @@ pub async fn simulate_admin_tx_and_generate_safe_hash(
         })
         .ok_or_else(|| eyre::eyre!("Simulation ID not found in response"))?;
 
-    let safe_hash_hex = format!("0x{}", hex::encode(safe_hash));
-    Ok((simulation_url, safe_hash_hex))
+    Ok((simulation_url, safe_hash))
+}
+
+async fn generate_safe_hash_and_return_params(
+    safe: &GnosisSafeInstance<
+        (),
+        alloy::providers::fillers::FillProvider<
+            alloy::providers::fillers::JoinFill<
+                alloy::providers::Identity,
+                alloy::providers::fillers::JoinFill<
+                    alloy::providers::fillers::GasFiller,
+                    alloy::providers::fillers::JoinFill<
+                        alloy::providers::fillers::BlobGasFiller,
+                        alloy::providers::fillers::JoinFill<
+                            alloy::providers::fillers::NonceFiller,
+                            alloy::providers::fillers::ChainIdFiller,
+                        >,
+                    >,
+                >,
+            >,
+            alloy::providers::RootProvider,
+        >,
+    >,
+    config: &SimulationConfig,
+) -> Result<(String, Address, U256, Bytes, u8)> {
+    let safe_tx_gas = U256::ZERO;
+    let base_gas = U256::ZERO;
+    let gas_price = U256::ZERO;
+    let gas_token = Address::ZERO;
+    let refund_receiver = Address::ZERO;
+
+    let to_address: Address = config.to.parse().expect("Failed to parse to");
+    let value = U256::from(config.value.parse::<U256>().expect("Failed to parse value"));
+    let data = Bytes::from(config.data.parse::<Bytes>().expect("Failed to parse data"));
+    let operation = config.operation;
+
+    let safe_hash = safe
+        .getTransactionHash(
+            to_address,
+            value,
+            data.clone(),
+            operation,
+            safe_tx_gas,
+            base_gas,
+            gas_price,
+            gas_token,
+            refund_receiver,
+            U256::from(config.nonce),
+        )
+        .call()
+        .await?
+        ._0;
+
+    Ok((
+        format!("0x{}", hex::encode(safe_hash)),
+        to_address,
+        value,
+        data,
+        operation,
+    ))
 }
 
 pub async fn simulate_timelock_admin_txs_and_generate_safe_hashes(
@@ -203,6 +237,29 @@ pub async fn simulate_timelock_admin_txs_and_generate_safe_hashes(
 
     let propose_config = read_simulation_config(&propose_tx_path)?;
     let execute_config = read_simulation_config(&execute_tx_path)?;
+
+    // Validate matching fields between propose and execute configs
+    if propose_config.network_id != execute_config.network_id {
+        return Err(eyre::eyre!(
+            "Network IDs do not match: propose={}, execute={}",
+            propose_config.network_id,
+            execute_config.network_id
+        ));
+    }
+    if propose_config.to != execute_config.to {
+        return Err(eyre::eyre!(
+            "Target addresses do not match: propose={}, execute={}",
+            propose_config.to,
+            execute_config.to
+        ));
+    }
+    if propose_config.operation != execute_config.operation {
+        return Err(eyre::eyre!(
+            "Operations do not match: propose={}, execute={}",
+            propose_config.operation,
+            execute_config.operation
+        ));
+    }
 
     let from_address = "0xe2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2";
 
@@ -230,63 +287,25 @@ pub async fn simulate_timelock_admin_txs_and_generate_safe_hashes(
         .await?;
 
     let create_vnet_response_json = create_vnet_response.json::<serde_json::Value>().await?;
-    fs::write(
-        "create_vnet.json",
-        serde_json::to_string_pretty(&create_vnet_response_json)?,
-    )?;
 
     let vnet_id = create_vnet_response_json
         .get("id")
         .and_then(|id| id.as_str())
         .ok_or_else(|| eyre::eyre!("Vnet ID not found in response"))?;
 
-    // Build input.
-    let from_addr: Address = from_address.parse()?;
-    let input = GnosisSafe::enableModuleCall::new((from_addr,)).abi_encode();
-    let input_hex = hex::encode(input);
-
     let timestamp = SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .unwrap()
         .as_secs();
 
-    // Call enable module specifying from address as a module.
-    client
-        .post(&format!(
-            "https://api.tenderly.co/api/v1/account/{}/project/{}/vnets/{}/transactions",
-            account_slug, project_slug, vnet_id
-        ))
-        .header("X-Access-Key", api_key.clone())
-        .json(&json!({
-            "callArgs": {
-                "from": propose_config.multisig,
-                "to": propose_config.multisig,
-                "gas": format!("0x{:x}", 10_000_000),
-                "gasPrice": "0x0",
-                "value": "0x0",
-                "data": format!("0x{}", input_hex)
-            },
-            "blockOverrides": {
-              "time": format!("0x{:x}", timestamp)
-            }
-        }))
-        .send()
-        .await?;
+    // Generate Safe Hash
+    let rpc_url = get_rpc_url(propose_config.network_id)?;
+    let provider = ProviderBuilder::new().on_builtin(&rpc_url).await?;
+    let safe_address = propose_config.multisig.parse().expect("Failed to parse to");
+    let safe = GnosisSafe::new(safe_address, provider);
 
-    let to_address: Address = propose_config.to.parse().expect("Failed to parse to");
-    let value = U256::from(
-        propose_config
-            .value
-            .parse::<U256>()
-            .expect("Failed to parse value"),
-    );
-    let data = Bytes::from(
-        propose_config
-            .data
-            .parse::<Bytes>()
-            .expect("Failed to parse data"),
-    );
-    let operation = propose_config.operation;
+    let (propose_safe_hash_hex, to_address, value, data, operation) =
+        generate_safe_hash_and_return_params(&safe, &propose_config).await?;
 
     // Build input.
     let input =
@@ -312,25 +331,20 @@ pub async fn simulate_timelock_admin_txs_and_generate_safe_hashes(
             },
             "blockOverrides": {
               "time": format!("0x{:x}", timestamp + 1)
+            },
+            "stateOverrides": {
+                propose_config.multisig.clone(): {
+                    "stateDiff": {
+                        "0xd71a90a935e1abe19645d4f9630a0044413a815e634f2ca5c4b4b04becfec14c": "0x0000000000000000000000000000000000000000000000000000000000000001"
+                    }
+                }
             }
         }))
         .send()
         .await?;
 
-    let to_address: Address = execute_config.to.parse().expect("Failed to parse to");
-    let value = U256::from(
-        execute_config
-            .value
-            .parse::<U256>()
-            .expect("Failed to parse value"),
-    );
-    let data = Bytes::from(
-        execute_config
-            .data
-            .parse::<Bytes>()
-            .expect("Failed to parse data"),
-    );
-    let operation = execute_config.operation;
+    let (execute_safe_hash_hex, to_address, value, data, operation) =
+        generate_safe_hash_and_return_params(&safe, &execute_config).await?;
 
     // Build input.
     let input =
@@ -339,7 +353,7 @@ pub async fn simulate_timelock_admin_txs_and_generate_safe_hashes(
 
     let input_hex = hex::encode(input);
 
-    let send_execute_tx_response = client
+    let _response = client
         .post(&format!(
             "https://api.tenderly.co/api/v1/account/{}/project/{}/vnets/{}/transactions",
             account_slug, project_slug, vnet_id
@@ -356,28 +370,43 @@ pub async fn simulate_timelock_admin_txs_and_generate_safe_hashes(
             },
             "blockOverrides": {
               "time": format!("0x{:x}", timestamp + 30 * 86_400)
+            },
+            "stateOverrides": {
+                execute_config.multisig.clone(): {
+                    "stateDiff": {
+                        "0xd71a90a935e1abe19645d4f9630a0044413a815e634f2ca5c4b4b04becfec14c": "0x0000000000000000000000000000000000000000000000000000000000000001"
+                    }
+                }
             }
         }))
         .send()
         .await?;
 
-    let send_execute_tx_response_json =
-        send_execute_tx_response.json::<serde_json::Value>().await?;
+    // NOTE for debugging
+    // let response_json = response.json::<serde_json::Value>().await?;
+    // fs::write("tmp.json", serde_json::to_string_pretty(&response_json)?)?;
 
-    fs::write(
-        "execute_tx.json",
-        serde_json::to_string_pretty(&send_execute_tx_response_json)?,
-    )?;
+    let vnet_url = format!(
+        "https://dashboard.tenderly.co/{}/{}/testnet/{}",
+        account_slug, project_slug, vnet_id
+    );
 
-    Ok(("".to_string(), "".to_string(), "".to_string()))
+    Ok((vnet_url, propose_safe_hash_hex, execute_safe_hash_hex))
 }
 
 pub async fn generate_root_update_tx(
-    new_root: FixedBytes<32>,
+    root_str: &String,
     product_name: &str,
     network_id: u32,
     nonce: u32,
 ) -> Result<Vec<SimulationConfig>> {
+    // Trim "0x" prefix if present
+    let root_str = root_str.trim_start_matches("0x");
+    // Convert hex string to Vec<u8>
+    let root_bytes = hex::decode(root_str)?;
+    // Convert to fixed-size bytes
+    let new_root = FixedBytes::<32>::from_slice(&root_bytes);
+
     // Read and parse config.toml
     let config_content = fs::read_to_string("config.toml")?;
     let config: Value = config_content.parse::<Value>()?;
@@ -398,10 +427,16 @@ pub async fn generate_root_update_tx(
             .and_then(|p| p.get("default"))
             .and_then(|p| p.get(key));
 
-        network_value
-            .or(default_value)
-            .ok_or_else(|| eyre::eyre!("Config value not found for key: {}", key))
-            .map(|v| v.clone())
+        if key == "timelock_address" {
+            Ok(network_value.or(default_value).cloned().unwrap_or_else(|| {
+                Value::String("0x0000000000000000000000000000000000000000".to_string())
+            }))
+        } else {
+            network_value
+                .or(default_value)
+                .ok_or_else(|| eyre::eyre!("Config value not found for key: {}", key))
+                .map(|v| v.clone())
+        }
     };
 
     // Get required addresses from config
@@ -409,6 +444,10 @@ pub async fn generate_root_update_tx(
     let strategists = strategists_value
         .as_array()
         .ok_or_else(|| eyre::eyre!("Strategists must be an array"))?;
+
+    if strategists.is_empty() {
+        return Err(eyre::eyre!("Strategists array cannot be empty"));
+    }
 
     let manager_value = get_product_value("manager_address")?;
     let manager_address = manager_value
@@ -431,6 +470,9 @@ pub async fn generate_root_update_tx(
 
     let mut txs = Vec::new();
     if timelock_addr != Address::ZERO {
+        // Load env variables
+        dotenv().ok();
+
         // Read the min delay.
         let rpc_url = get_rpc_url(network_id)?;
         let provider = ProviderBuilder::new().on_builtin(&rpc_url).await?;
@@ -443,7 +485,7 @@ pub async fn generate_root_update_tx(
         let predecessor = FixedBytes::<32>::ZERO;
         let salt = FixedBytes::<32>::ZERO;
 
-        for (i, strategist) in strategists.iter().enumerate() {
+        for strategist in strategists {
             targets.push(manager_addr);
             values.push(U256::ZERO);
             let strategist_address = strategist
@@ -490,19 +532,77 @@ pub async fn generate_root_update_tx(
     } else {
         if strategists.len() == 1 {
             // No need to use MultiSend, make call directly to manager.
-            todo!()
-            // txs.push(SimulationConfig {
-            //     network_id,
-            //     multisig: multisig_address.to_string(),
-            //     to: manager_address.to_string(),
-            //     value: "0".to_string(),
-            //     data: "0x".to_string(),
-            //     operation: 0,
-            //     nonce,
-            // });
+            let strategist_address = strategists[0]
+                .as_str()
+                .ok_or_else(|| eyre::eyre!("Strategist address must be a string"))?;
+            let strategist_addr = strategist_address.parse()?;
+            let bytes_data =
+                ManagerWithMerkleVerification::setManageRootCall::new((strategist_addr, new_root))
+                    .abi_encode();
+            txs.push(SimulationConfig {
+                network_id,
+                multisig: multisig_address.to_string(),
+                to: manager_address.to_string(),
+                value: "0".to_string(),
+                data: format!("0x{}", hex::encode(bytes_data)),
+                operation: 0,
+                nonce,
+            });
         } else {
-            // Need to use MultiSend contract
-            todo!()
+            // Need to use MultiSend contract.
+            let mut targets = Vec::with_capacity(strategists.len());
+            let mut values = Vec::with_capacity(strategists.len());
+            let mut data = Vec::with_capacity(strategists.len());
+            for strategist in strategists {
+                let strategist_address = strategist
+                    .as_str()
+                    .ok_or_else(|| eyre::eyre!("Strategist address must be a string"))?;
+                let strategist_addr = strategist_address.parse()?;
+                targets.push(manager_addr);
+                values.push(U256::ZERO);
+                data.push(
+                    ManagerWithMerkleVerification::setManageRootCall::new((
+                        strategist_addr,
+                        new_root,
+                    ))
+                    .abi_encode(),
+                );
+            }
+
+            let mut encoded_transactions = Vec::new();
+
+            for i in 0..targets.len() {
+                // operation (0 for Call) - 1 byte
+                encoded_transactions.push(0u8);
+
+                // to address - 20 bytes
+                encoded_transactions.extend_from_slice(&targets[i].as_slice());
+
+                // value - 32 bytes
+                encoded_transactions.extend_from_slice(&values[i].to_be_bytes::<32>());
+
+                // data length - 32 bytes
+                let data_len = U256::from(data[i].len());
+                encoded_transactions.extend_from_slice(&data_len.to_be_bytes::<32>());
+
+                // data - dynamic length
+                encoded_transactions.extend_from_slice(&data[i]);
+            }
+
+            // Create the final transaction
+            let multisend_data =
+                MutliSendCallOnly::multiSendCall::new((Bytes::from(encoded_transactions),))
+                    .abi_encode();
+
+            txs.push(SimulationConfig {
+                network_id,
+                multisig: multisig_address.to_string(),
+                to: MULTISEND_ADDRESS.to_string(),
+                value: "0".to_string(),
+                data: format!("0x{}", hex::encode(multisend_data)),
+                operation: 1,
+                nonce,
+            });
         }
     }
 

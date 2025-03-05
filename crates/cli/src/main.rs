@@ -1,6 +1,11 @@
 use clap::{Parser, Subcommand};
-use core::simulate_admin_tx_and_generate_safe_hash;
+use core::{
+    generate_root_update_tx, simulate_admin_tx_and_generate_safe_hash,
+    simulate_timelock_admin_txs_and_generate_safe_hashes,
+};
 use eyre::Result;
+use std::fs;
+use std::path::Path;
 
 #[derive(Parser)]
 #[command(author, version, about, long_about = None)]
@@ -17,19 +22,33 @@ enum Commands {
         #[arg(long = "tx", short = 't')]
         tx_path: String,
     },
-    /// Generate admin transaction data
-    Generate {
-        /// Path to save the generated admin transaction JSON
-        #[arg(long = "output", short = 'o')]
-        output: String,
+    /// Generate root update transactions
+    GenerateRoot {
+        /// New root value (32 byte hex)
+        #[arg(long = "root", short = 'r')]
+        root: String,
 
-        /// Network ID for the transaction
+        /// Product name
+        #[arg(long = "product", short = 'p')]
+        product: String,
+
+        /// Network ID
         #[arg(long = "network", short = 'n')]
         network_id: u32,
 
-        /// Multisig address
-        #[arg(long = "multisig", short = 'm')]
-        multisig: String,
+        /// Nonce
+        #[arg(long = "nonce")]
+        nonce: u32,
+    },
+    /// Simulate timelock transactions
+    SimulateTimelock {
+        /// Path to propose transaction JSON
+        #[arg(long = "propose", short = 'p')]
+        propose_path: String,
+
+        /// Path to execute transaction JSON
+        #[arg(long = "execute", short = 'e')]
+        execute_path: String,
     },
 }
 
@@ -44,16 +63,43 @@ async fn main() -> Result<()> {
             println!("Safe Hash: {}", safe_hash);
             println!("Simulation URL: {}", simulation_url);
         }
-        Commands::Generate {
-            output,
+        Commands::GenerateRoot {
+            root,
+            product,
             network_id,
-            multisig,
+            nonce,
         } => {
-            // TODO: Implement admin tx generation
-            println!(
-                "TODO: Generate admin tx for network {} and multisig {} to {}",
-                network_id, multisig, output
-            );
+            // Remove output directory if it exists, then create it fresh
+            if Path::new("output").exists() {
+                fs::remove_dir_all("output")?;
+            }
+            fs::create_dir_all("output")?;
+
+            // Generate transactions
+            let configs = generate_root_update_tx(root, product, *network_id, *nonce).await?;
+
+            // Save each config to a numbered JSON file
+            for (i, config) in configs.iter().enumerate() {
+                let filename = format!("output/tx_{}.json", i);
+                let json = serde_json::to_string_pretty(&config)?;
+                fs::write(&filename, json)?;
+                println!("Saved transaction to: {}", filename);
+            }
+        }
+        Commands::SimulateTimelock {
+            propose_path,
+            execute_path,
+        } => {
+            let (simulation_url, propose_hash, execute_hash) =
+                simulate_timelock_admin_txs_and_generate_safe_hashes(
+                    propose_path.clone(),
+                    execute_path.clone(),
+                )
+                .await?;
+
+            println!("Propose Hash: {}", propose_hash);
+            println!("Execute Hash: {}", execute_hash);
+            println!("Simulation URL: {}", simulation_url);
         }
     }
 
