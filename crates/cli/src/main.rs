@@ -1,6 +1,6 @@
 use clap::{Parser, Subcommand};
 use core::{
-    generate_root_update_tx, simulate_admin_tx_and_generate_safe_hash,
+    generate_root_update_txs, simulate_admin_tx_and_generate_safe_hash,
     simulate_timelock_admin_txs_and_generate_safe_hashes,
 };
 use eyre::Result;
@@ -23,7 +23,7 @@ enum Commands {
         tx_path: String,
     },
     /// Generate root update transactions
-    GenerateRoot {
+    UpdateRoot {
         /// New root value (32 byte hex)
         #[arg(long = "root", short = 'r')]
         root: String,
@@ -63,7 +63,7 @@ async fn main() -> Result<()> {
             println!("Safe Hash: {}", safe_hash);
             println!("Simulation URL: {}", simulation_url);
         }
-        Commands::GenerateRoot {
+        Commands::UpdateRoot {
             root,
             product,
             network_id,
@@ -76,7 +76,7 @@ async fn main() -> Result<()> {
             fs::create_dir_all("output")?;
 
             // Generate transactions
-            let configs = generate_root_update_tx(root, product, *network_id, *nonce).await?;
+            let configs = generate_root_update_txs(root, product, *network_id, *nonce).await?;
 
             // Save each config to a numbered JSON file
             for (i, config) in configs.iter().enumerate() {

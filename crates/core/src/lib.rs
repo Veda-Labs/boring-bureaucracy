@@ -394,7 +394,7 @@ pub async fn simulate_timelock_admin_txs_and_generate_safe_hashes(
     Ok((vnet_url, propose_safe_hash_hex, execute_safe_hash_hex))
 }
 
-pub async fn generate_root_update_tx(
+pub async fn generate_root_update_txs(
     root_str: &String,
     product_name: &str,
     network_id: u32,
