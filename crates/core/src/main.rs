@@ -1,7 +1,7 @@
 // use alloy::primitives::{Address, Bytes, FixedBytes, U256, b256};
 // use core::{
-//     generate_root_update_tx, simulate_admin_tx_and_generate_safe_hash,
-//     simulate_timelock_admin_txs_and_generate_safe_hashes,
+//     HardwareWalletType, approve_hash, generate_root_update_txs,
+//     simulate_admin_tx_and_generate_safe_hash, simulate_timelock_admin_txs_and_generate_safe_hashes,
 // };
 
 #[tokio::main]
@@ -46,6 +46,15 @@ async fn main() {
     //         println!("Propose Hash: {}", propose_hash);
     //         println!("Execute Hash: {}", execute_hash);
     //         println!("Simulation URL: {}", simulation_url);
+    //     }
+    //     Err(e) => {
+    //         eprintln!("Error: {:?}", e);
+    //     }
+    // }
+
+    // match approve_hash("output/tx_1.json", HardwareWalletType::TREZOR).await {
+    //     Ok(tx_hash) => {
+    //         println!("TX: {}", tx_hash);
     //     }
     //     Err(e) => {
     //         eprintln!("Error: {:?}", e);

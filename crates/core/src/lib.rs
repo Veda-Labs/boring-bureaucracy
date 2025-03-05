@@ -1,5 +1,9 @@
 use GnosisSafe::GnosisSafeInstance;
+use alloy::network::EthereumWallet;
 use alloy::primitives::{Address, Bytes, FixedBytes, U256, address};
+use alloy::providers::Provider;
+use alloy::signers::ledger::{self, LedgerSigner};
+use alloy::signers::trezor::{self, TrezorSigner};
 use alloy::{providers::ProviderBuilder, sol, sol_types::SolCall};
 use dotenv::dotenv;
 use eyre::Result;
@@ -29,6 +33,8 @@ sol! {
             uint256 _nonce
         ) public view returns (bytes32);
         function enableModule(address module) external;
+        function approveHash(bytes32 safeHash) external;
+        function getOwners() external view returns(address[] memory owners);
     }
 }
 
@@ -89,6 +95,21 @@ fn get_rpc_url(network_id: u32) -> Result<String> {
     } else {
         Ok(url_str.to_string())
     }
+}
+
+fn get_block_explorer_url(network_id: u32) -> Result<String> {
+    let config_content = fs::read_to_string("config.toml")?;
+    let config: Value = config_content.parse::<Value>()?;
+
+    let url_value = &config["block_explorers"][&network_id.to_string()];
+    let url_str = url_value.as_str().ok_or_else(|| {
+        eyre::eyre!(
+            "Block explorer URL not found for network_id: {}",
+            network_id
+        )
+    })?;
+
+    Ok(url_str.trim_end_matches('/').to_string())
 }
 
 pub async fn simulate_admin_tx_and_generate_safe_hash(
@@ -607,4 +628,93 @@ pub async fn generate_root_update_txs(
     }
 
     Ok(txs)
+}
+
+pub enum HardwareWalletType {
+    TREZOR,
+    LEDGER,
+}
+
+pub async fn approve_hash(admin_tx_path: &str, wallet_type: HardwareWalletType) -> Result<String> {
+    dotenv().ok(); // Load environment variables from .env file
+
+    let config = read_simulation_config(admin_tx_path)?;
+    let derivation_path = env::var("DERIVATION_PATH")?;
+    let wallet;
+    let signer_addr: Address;
+
+    match wallet_type {
+        HardwareWalletType::TREZOR => {
+            let signer = TrezorSigner::new(
+                trezor::HDPath::Other(derivation_path),
+                Some(config.network_id as u64),
+            )
+            .await?;
+            signer_addr = signer.get_address().await?;
+            wallet = EthereumWallet::from(signer);
+        }
+        HardwareWalletType::LEDGER => {
+            let signer = LedgerSigner::new(
+                ledger::HDPath::Other(derivation_path),
+                Some(config.network_id as u64),
+            )
+            .await?;
+            signer_addr = signer.get_address().await?;
+            let wallet_signer = signer;
+            wallet = EthereumWallet::from(wallet_signer);
+        }
+    }
+
+    // Call getTransactionHash
+    let rpc_url = get_rpc_url(config.network_id)?;
+    let provider = ProviderBuilder::new().on_builtin(&rpc_url).await?;
+    let safe_address = config.multisig.parse().expect("Failed to parse to");
+    let safe = GnosisSafe::new(safe_address, provider.clone());
+
+    let owners = safe.getOwners().call().await?.owners;
+
+    if !owners.contains(&signer_addr) {
+        return Err(eyre::eyre!(
+            "Signer address {} is not an owner of the Safe {}",
+            signer_addr,
+            safe_address
+        ));
+    }
+
+    let (safe_hash_str, _to_address, _value, _data, _operation) =
+        generate_safe_hash_and_return_params(&safe, &config).await?;
+
+    let provider = ProviderBuilder::new()
+        .wallet(wallet)
+        .on_http(rpc_url.parse()?);
+    let safe = GnosisSafe::new(safe_address, provider.clone());
+
+    // Trim "0x" prefix if present
+    let safe_hash_str = safe_hash_str.trim_start_matches("0x");
+    // Convert hex string to Vec<u8>
+    let safe_hash_bytes = hex::decode(safe_hash_str)?;
+    // Convert to fixed-size bytes
+    let safe_hash = FixedBytes::<32>::from_slice(&safe_hash_bytes);
+
+    let approve_hash_tx_request = safe.approveHash(safe_hash).into_transaction_request();
+
+    // println!("Signer Address: {}", signer.get_address().await?);
+    // Print verification info
+    let selector = "0xd4d9bdcd"; // approveHash selector
+    println!("Please verify the following on your hardware wallet:");
+    println!("approveHash Selector: {}", selector);
+    println!("Safe Hash: 0x{}", safe_hash_str);
+    println!("Data: {}{}", selector, safe_hash_str);
+    println!("Recipient: {}", config.multisig);
+
+    let tx_hash = provider
+        .send_transaction(approve_hash_tx_request)
+        .await?
+        .with_required_confirmations(3)
+        .watch()
+        .await?;
+
+    let block_explorer_url = get_block_explorer_url(config.network_id)?;
+    let tx_hash_hex = hex::encode(tx_hash.as_slice());
+    Ok(format!("{}/tx/0x{}", block_explorer_url, tx_hash_hex))
 }

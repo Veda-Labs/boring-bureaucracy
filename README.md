@@ -84,6 +84,22 @@ cargo run --bin cli simulate-timelock \
 
 This will return the unique safe hash for the propose and the execute txs, and a tenderly vnet url.
 
+### Approve Safe Transaction Hash with Hardware Wallet
+
+To approve a Safe transaction hash using a hardware wallet:
+
+#### Approve with Trezor
+
+```bash
+cargo run --bin cli approve-hash --tx output/tx_0.json --trezor
+```
+
+#### Approve with Ledger
+
+```bash
+cargo run --bin cli approve-hash --tx output/tx_0.json --ledger
+```
+
 ## Configuration
 
 Product configurations are managed through `config.toml`. Each product can have network-specific settings and defaults.

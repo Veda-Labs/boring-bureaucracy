@@ -1,7 +1,7 @@
 use clap::{Parser, Subcommand};
 use core::{
-    generate_root_update_txs, simulate_admin_tx_and_generate_safe_hash,
-    simulate_timelock_admin_txs_and_generate_safe_hashes,
+    HardwareWalletType, approve_hash, generate_root_update_txs,
+    simulate_admin_tx_and_generate_safe_hash, simulate_timelock_admin_txs_and_generate_safe_hashes,
 };
 use eyre::Result;
 use std::fs;
@@ -49,6 +49,20 @@ enum Commands {
         /// Path to execute transaction JSON
         #[arg(long = "execute", short = 'e')]
         execute_path: String,
+    },
+    /// Approve a Safe transaction hash using a hardware wallet
+    ApproveHash {
+        /// Path to the transaction JSON file
+        #[arg(long = "tx", short = 'p')]
+        tx_path: String,
+
+        /// Use Trezor hardware wallet
+        #[arg(long = "trezor", short = 't', conflicts_with = "ledger")]
+        trezor: bool,
+
+        /// Use Ledger hardware wallet
+        #[arg(long = "ledger", short = 'l', conflicts_with = "trezor")]
+        ledger: bool,
     },
 }
 
@@ -100,6 +114,24 @@ async fn main() -> Result<()> {
             println!("Propose Hash: {}", propose_hash);
             println!("Execute Hash: {}", execute_hash);
             println!("Simulation URL: {}", simulation_url);
+        }
+        Commands::ApproveHash {
+            tx_path,
+            trezor,
+            ledger,
+        } => {
+            let wallet_type = match (*trezor, *ledger) {
+                (true, false) => HardwareWalletType::TREZOR,
+                (false, true) => HardwareWalletType::LEDGER,
+                _ => {
+                    return Err(eyre::eyre!(
+                        "Must specify either --trezor (-t) or --ledger (-l)"
+                    ));
+                }
+            };
+
+            let tx_url = approve_hash(tx_path, wallet_type).await?;
+            println!("Transaction URL: {}", tx_url);
         }
     }
 
