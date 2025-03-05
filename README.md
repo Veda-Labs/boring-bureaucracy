@@ -100,6 +100,22 @@ cargo run --bin cli approve-hash --tx output/tx_0.json --trezor
 cargo run --bin cli approve-hash --tx output/tx_0.json --ledger
 ```
 
+This command will:
+
+1. Connect to your hardware wallet
+2. Display the transaction details for verification
+3. Request approval on the hardware wallet
+4. Submit the approval transaction to the network
+5. Return a block explorer URL to track the transaction
+
+You must specify either `--trezor` (-t) or `--ledger` (-l) to indicate which hardware wallet to use.
+
+Make sure your hardware wallet is:
+
+- Connected and unlocked
+- On the Ethereum app
+- Using the correct derivation path (set in .env)
+
 ## Configuration
 
 Product configurations are managed through `config.toml`. Each product can have network-specific settings and defaults.
