@@ -1,6 +1,6 @@
 use GnosisSafe::GnosisSafeInstance;
 use alloy::network::EthereumWallet;
-use alloy::primitives::{Address, Bytes, FixedBytes, U256, address};
+use alloy::primitives::{Address, Bytes, FixedBytes, U256};
 use alloy::providers::Provider;
 use alloy::signers::ledger::{self, LedgerSigner};
 use alloy::signers::trezor::{self, TrezorSigner};
@@ -60,8 +60,6 @@ sol! {
         function getMinDelay() external view returns(uint256 delay);
     }
 }
-
-const MULTISEND_ADDRESS: Address = address!("40A2aCCbd92BCA938b02010E17A5b8929b49130D");
 
 #[derive(Serialize, Deserialize)]
 pub struct SimulationConfig {
@@ -415,6 +413,29 @@ pub async fn simulate_timelock_admin_txs_and_generate_safe_hashes(
     Ok((vnet_url, propose_safe_hash_hex, execute_safe_hash_hex))
 }
 
+fn get_multisend_address(network_id: u32) -> Result<String> {
+    let config_content = fs::read_to_string("config.toml")?;
+    let config: Value = config_content.parse::<Value>()?;
+
+    // Try network specific value first
+    let network_value = config
+        .get("multi_send_address")
+        .and_then(|m| m.get(&network_id.to_string()))
+        .and_then(|m| m.as_str());
+
+    // Fallback to default if network specific not found
+    let default_value = config
+        .get("multi_send_address")
+        .and_then(|m| m.get("default"))
+        .and_then(|m| m.as_str());
+
+    let address_str = network_value
+        .or(default_value)
+        .ok_or_else(|| eyre::eyre!("Multisend address not found for network_id: {}", network_id))?;
+
+    Ok(address_str.to_string())
+}
+
 pub async fn generate_root_update_txs(
     root_str: &String,
     product_name: &str,
@@ -618,7 +639,7 @@ pub async fn generate_root_update_txs(
             txs.push(SimulationConfig {
                 network_id,
                 multisig: multisig_address.to_string(),
-                to: MULTISEND_ADDRESS.to_string(),
+                to: get_multisend_address(network_id)?,
                 value: "0".to_string(),
                 data: format!("0x{}", hex::encode(multisend_data)),
                 operation: 1,
@@ -717,4 +738,40 @@ pub async fn approve_hash(admin_tx_path: &str, wallet_type: HardwareWalletType) 
     let block_explorer_url = get_block_explorer_url(config.network_id)?;
     let tx_hash_hex = hex::encode(tx_hash.as_slice());
     Ok(format!("{}/tx/0x{}", block_explorer_url, tx_hash_hex))
+}
+
+pub fn generate_notion_markdown(
+    title: &str,
+    safe_hash: &str,
+    tx_data: &serde_json::Value,
+    root_info: Option<(&str, &[&str])>, // (root_hash, strategist_addresses)
+) -> String {
+    format!(
+        r#"- {title}
+
+SafeTxHash: `{safe_hash}`
+
+Proposal TXN: Link
+<details>
+<summary>Transaction Details</summary>
+         ```json
+        {}
+         ```
+</details>
+
+        {}
+
+        Diff: here
+
+"#,
+        serde_json::to_string_pretty(tx_data).unwrap(),
+        if let Some((root, addresses)) = root_info {
+            format!(
+                "- Set Root: `{}` for `{}` and `{}`",
+                root, addresses[0], addresses[1]
+            )
+        } else {
+            String::new()
+        }
+    )
 }

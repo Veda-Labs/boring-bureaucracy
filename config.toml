@@ -2,9 +2,15 @@
 1 = "env:MAINNET_RPC_URL"
 60808 = "env:BOB_RPC_URL"
 146 = "env:SONIC_RPC_URL"
+80094 = "env:BERACHAIN_RPC_URL"
 
 [block_explorers]
 1 = "https://etherscan.io/"
+80094 = "https://berascan.com/"
+
+[multi_send_address]
+default = "40A2aCCbd92BCA938b02010E17A5b8929b49130D"
+80094 = "0xA1dabEF33b3B82c7814B6D82A79e50F4AC44102B"
 
 
 # Product Configuration
@@ -96,4 +102,43 @@ timelock_address = "0x8ba3c92f70aCabAC636b47699b4028E253743745"
 strategists = [
     "0xB26AEb430b5Bf6Be55763b42095E82DB9a1838B8",
     "0xE89CeE9837e6Fce3b1Ebd8E1C779b76fd6E20136",
+]
+
+[product.prime_liquid_bera_eth.80094]
+multisig_address = "0x183fE88858AAB892cc796662200374e3dF6927E3"
+vault_address = "0xB83742330443f7413DBD2aBdfc046dB0474a944e"
+manager_address = "0x58d32BCfa335B1EE9E25A291408409ceA890Be6b"
+accountant_address = "0x0B24A469d7c155a588C8a4ee24020F9f27090B0d"
+teller_address = "0xa6976B2211411461aB6DF4B3AAE896531Eb527df"
+roles_authority_address = "0x0eDEBE41b1Ca274DDC4b353363E07FdC8DAc4A05"
+strategists = [
+    "0x560441fa211aed16dd49f70c226380c9d4875225",
+    "0x65716abb00ec074c3c1991a213b41cdc54e8212b",
+]
+
+[product.liquid_btc.1]
+multisig_address = "0xCEA8039076E35a825854c5C2f85659430b06ec96"
+vault_address = "0x5f46d540b6eD704C3c8789105F30E075AA900726"
+manager_address = "0xaFa8c08bedB2eC1bbEb64A7fFa44c604e7cca68d"
+accountant_address = "0xEa23aC6D7D11f6b181d6B98174D334478ADAe6b0"
+teller_address = "0x"
+roles_authority_address = "0x49F954c67ff235034b69b8a59fbe309A40256c8d"
+strategists = [
+    "0x41DFc53B13932a2690C9790527C1967d8579a6ae",
+    "0x71E2d6c34f569cC4Df5802d675B208FB8AE3Bcd6",
+    "0x6fA5d361Ab8165347F636217001E22a7cEF09B48",
+]
+
+
+[product.ultra_usd.1]
+multisig_address = "0xCEA8039076E35a825854c5C2f85659430b06ec96"
+vault_address = "0xbc0f3B23930fff9f4894914bD745ABAbA9588265"
+manager_address = "0x4f81c27e750A453d6206C2d10548d6566F60886C"
+accountant_address = "0x95fE19b324bE69250138FE8EE50356e9f6d17Cfe"
+teller_address = "0x"
+roles_authority_address = "0x3E6D22a67b9728A0866D69EFa16c2e20E60A8451"
+strategists = [
+    "0x41DFc53B13932a2690C9790527C1967d8579a6ae",
+    "0x71E2d6c34f569cC4Df5802d675B208FB8AE3Bcd6",
+    "0xFBc847FA8AFA576c43dc85afE84edD637bc0A904",
 ]

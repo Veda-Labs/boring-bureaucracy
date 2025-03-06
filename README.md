@@ -119,3 +119,32 @@ Make sure your hardware wallet is:
 ## Configuration
 
 Product configurations are managed through `config.toml`. Each product can have network-specific settings and defaults.
+
+> ### Nonce 38: Propose Timelock to add Aave
+
+SafeTxHash: `0x973bc1b24f52e81df238f9a7c451e9f3987deda5fceda45e4fcd67aa3f585f14`
+
+Proposal TXN: Link
+
+<details>
+<summary>Transaction Details</summary>
+
+```json
+{
+  "baseGas": 0,
+  "data": "0x8f2a0bb000000000000000000000000000000000000000000000000000000000000",
+  "gasPrice": 0,
+  "gasToken": "0x0000000000000000000000000000000000000000",
+  "nonce": 38,
+  "operation": 0,
+  "refundReceiver": "0x0000000000000000000000000000000000000000",
+  "safeTxGas": 0,
+  "to": "0xFb6ec7CCBd77a42922a35D22A94fdF7fd54EE4BC",
+  "value": 0
+}
+```
+
+</details>
+
+- Set Root: `0x89a526fb2b69815032c7c59b737cef4f7275105b4e02cd4c6cc09317876cb406` for `0xB26AEb430b5Bf6Be55763b42095E82DB9a1838B8` and `0xE89CeE9837e6Fce3b1Ebd8E1C779b76fd6E20136`
+  Diff: here
