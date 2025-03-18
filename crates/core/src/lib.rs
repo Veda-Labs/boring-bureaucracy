@@ -1,16 +1,19 @@
-use GnosisSafe::GnosisSafeInstance;
+use GnosisSafe::{GnosisSafeEvents, GnosisSafeInstance};
 use alloy::network::EthereumWallet;
 use alloy::primitives::{Address, Bytes, FixedBytes, U256};
 use alloy::providers::Provider;
+use alloy::rpc::types::Filter;
 use alloy::signers::ledger::{self, LedgerSigner};
 use alloy::signers::trezor::{self, TrezorSigner};
+use alloy::sol_types::SolEvent;
 use alloy::{providers::ProviderBuilder, sol, sol_types::SolCall};
 use dotenv::dotenv;
-use eyre::Result;
+use eyre::{Result, eyre};
 use hex;
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
+use std::str::FromStr;
 use std::time::{SystemTime, UNIX_EPOCH};
 use std::{env, fs};
 use toml::Value;
@@ -19,6 +22,7 @@ use uuid::Uuid;
 sol! {
     #[sol(rpc)]
     contract GnosisSafe {
+        event ApproveHash(bytes32 indexed approvedHash, address indexed owner);
         function execTransactionFromModule(address to, uint256 value, bytes memory data, uint8 operation);
         function getTransactionHash(
             address to,
@@ -35,6 +39,19 @@ sol! {
         function enableModule(address module) external;
         function approveHash(bytes32 safeHash) external;
         function getOwners() external view returns(address[] memory owners);
+        function getThreshold() external view returns(uint256 threshold);
+        function execTransaction(
+            address to,
+            uint256 value,
+            bytes calldata data,
+            uint8 operation,
+            uint256 safeTxGas,
+            uint256 baseGas,
+            uint256 gasPrice,
+            address gasToken,
+            address payable refundReceiver,
+            bytes memory signatures
+        ) external;
     }
 }
 
@@ -730,6 +747,149 @@ pub async fn approve_hash(admin_tx_path: &str, wallet_type: HardwareWalletType) 
 
     let tx_hash = provider
         .send_transaction(approve_hash_tx_request)
+        .await?
+        .with_required_confirmations(3)
+        .watch()
+        .await?;
+
+    let block_explorer_url = get_block_explorer_url(config.network_id)?;
+    let tx_hash_hex = hex::encode(tx_hash.as_slice());
+    Ok(format!("{}/tx/0x{}", block_explorer_url, tx_hash_hex))
+}
+
+pub async fn exec_transaction(
+    admin_tx_path: &str,
+    wallet_type: HardwareWalletType,
+) -> Result<String> {
+    dotenv().ok(); // Load environment variables from .env file
+
+    let config = read_simulation_config(admin_tx_path)?;
+    let derivation_path = env::var("DERIVATION_PATH")?;
+    let wallet;
+    let signer_addr: Address;
+
+    match wallet_type {
+        HardwareWalletType::TREZOR => {
+            let signer = TrezorSigner::new(
+                trezor::HDPath::Other(derivation_path),
+                Some(config.network_id as u64),
+            )
+            .await?;
+            signer_addr = signer.get_address().await?;
+            wallet = EthereumWallet::from(signer);
+        }
+        HardwareWalletType::LEDGER => {
+            let signer = LedgerSigner::new(
+                ledger::HDPath::Other(derivation_path),
+                Some(config.network_id as u64),
+            )
+            .await?;
+            signer_addr = signer.get_address().await?;
+            let wallet_signer = signer;
+            wallet = EthereumWallet::from(wallet_signer);
+        }
+    }
+
+    // Call getTransactionHash
+    let rpc_url = get_rpc_url(config.network_id)?;
+    let provider = ProviderBuilder::new().on_builtin(&rpc_url).await?;
+    let safe_address = config.multisig.parse().expect("Failed to parse to");
+    let safe = GnosisSafe::new(safe_address, provider.clone());
+
+    let (safe_hash_str, _to_address, _value, _data, _operation) =
+        generate_safe_hash_and_return_params(&safe, &config).await?;
+
+    let provider = ProviderBuilder::new()
+        .wallet(wallet)
+        .on_http(rpc_url.parse()?);
+    let safe = GnosisSafe::new(safe_address, provider.clone());
+
+    // Trim "0x" prefix if present
+    let safe_hash_str = safe_hash_str.trim_start_matches("0x");
+    // Convert hex string to Vec<u8>
+    let safe_hash_bytes = hex::decode(safe_hash_str)?;
+    // Convert to fixed-size bytes
+    let safe_hash = FixedBytes::<32>::from_slice(&safe_hash_bytes);
+
+    // Get the threshold.
+    let threshold = safe.getThreshold().call().await?.threshold;
+
+    let latest_block = provider.get_block_number().await?;
+    let filter = Filter::new()
+        .address(safe_address)
+        .event_signature(GnosisSafe::ApproveHash::SIGNATURE_HASH)
+        .topic1(safe_hash)
+        .from_block(0)
+        .to_block(latest_block);
+    // .from_block(latest_block);
+
+    let logs = provider.get_logs(&filter).await?;
+
+    println!("Found {} log(s)", logs.len());
+
+    // Convert logs into Vec<Address>, parse the owner address from topic2
+    let mut approvers: Vec<Address> = logs
+        .iter()
+        .map(|log| {
+            let topic_bytes = log.topics()[2].as_slice();
+            Address::from_slice(&topic_bytes[12..]) // Convert last 20 bytes to Address
+        })
+        .collect();
+
+    // Sort addresses in ascending order
+    approvers.sort();
+
+    // Deduplicate in case an owner approved multiple times
+    approvers.dedup();
+
+    let threshold = threshold.to::<usize>();
+    if approvers.len() > threshold {
+        // Take only what we need for threshold
+        approvers.truncate(threshold);
+    } else if approvers.len() < threshold {
+        return Err(eyre!(
+            "Not enough signers, have {}, need {}",
+            approvers.len(),
+            threshold
+        ));
+    }
+
+    // Create signatures bytes
+    let mut signatures = Vec::new();
+    for approver in approvers {
+        // r: 32 bytes - padded address
+        signatures.extend_from_slice(&[0u8; 12]); // Pad with 12 zeros
+        signatures.extend_from_slice(approver.as_slice()); // Add 20-byte address
+
+        // s: 32 bytes - all zeros
+        signatures.extend_from_slice(&[0u8; 32]);
+
+        // v: 1 byte - always 1
+        signatures.push(1);
+    }
+
+    let to = Address::from_str(&config.to)?;
+    let value = U256::from_str(&config.value)?;
+    let bytes = Bytes::from_str(&config.data)?;
+    let operation = config.operation;
+
+    let exec_transaction_tx_request = safe
+        .execTransaction(
+            to,
+            value,
+            bytes,
+            operation,
+            U256::ZERO,
+            U256::ZERO,
+            U256::ZERO,
+            Address::ZERO,
+            Address::ZERO,
+            Bytes::from(signatures),
+        )
+        .into_transaction_request();
+
+    let tx_hash = provider
+        .send_transaction(exec_transaction_tx_request)
         .await?
         .with_required_confirmations(3)
         .watch()
