@@ -143,6 +143,32 @@ Make sure your hardware wallet is:
 - On the Ethereum app
 - Using the correct derivation path (set in .env)
 
+### Proposing Safe Transaction Hash with Hardware Wallet
+
+Build, simulate, and propose a safe transaction in one command.
+
+#### Execute with Trezor
+
+```bash
+cargo run --bin cli propose-transaction \
+--root 0xa733bdbfc8f29878c3132d99e256a7707959c916aed81657f0aa3dbebd903b80 \
+--product lbtc_v \
+--network 1 \
+--nonce 25 \
+--trezor \
+```
+
+#### Execute with Ledger
+
+```bash
+cargo run --bin cli propose-transaction \
+--root 0xa733bdbfc8f29878c3132d99e256a7707959c916aed81657f0aa3dbebd903b80 \
+--product lbtc_v \
+--network 1 \
+--nonce 25 \
+--ledger \
+```
+
 ## Configuration
 
 Product configurations are managed through `config.toml`. Each product can have network-specific settings and defaults.
