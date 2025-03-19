@@ -1,4 +1,4 @@
-use GnosisSafe::{GnosisSafeEvents, GnosisSafeInstance};
+use GnosisSafe::GnosisSafeInstance;
 use alloy::network::EthereumWallet;
 use alloy::primitives::{Address, Bytes, FixedBytes, U256};
 use alloy::providers::Provider;
@@ -13,7 +13,6 @@ use hex;
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
-use std::str::FromStr;
 use std::time::{SystemTime, UNIX_EPOCH};
 use std::{env, fs};
 use toml::Value;
@@ -27,7 +26,7 @@ sol! {
         function getTransactionHash(
             address to,
             uint256 value,
-            bytes calldata data,
+            bytes memory data,
             uint8 operation,
             uint256 safeTxGas,
             uint256 baseGas,
@@ -40,6 +39,7 @@ sol! {
         function approveHash(bytes32 safeHash) external;
         function getOwners() external view returns(address[] memory owners);
         function getThreshold() external view returns(uint256 threshold);
+        function nonce() external view returns(uint256 nonce);
         function execTransaction(
             address to,
             uint256 value,
@@ -763,6 +763,10 @@ pub async fn exec_transaction(
 ) -> Result<String> {
     dotenv().ok(); // Load environment variables from .env file
 
+    let api_key = env::var("TENDERLY_ACCESS_KEY")?;
+    let account_slug = env::var("TENDERLY_ACCOUNT_SLUG")?;
+    let project_slug = env::var("TENDERLY_PROJECT_SLUG")?;
+
     let config = read_simulation_config(admin_tx_path)?;
     let derivation_path = env::var("DERIVATION_PATH")?;
     let wallet;
@@ -811,6 +815,19 @@ pub async fn exec_transaction(
     // Convert to fixed-size bytes
     let safe_hash = FixedBytes::<32>::from_slice(&safe_hash_bytes);
 
+    println!("Safe Hash: {}", safe_hash);
+
+    // Get the nonce.
+    let nonce = safe.nonce().call().await?.nonce.to::<u32>();
+
+    if nonce != config.nonce {
+        return Err(eyre!(
+            "Transaction nonce({}) does not match safe nonce({})",
+            config.nonce,
+            nonce
+        ));
+    }
+
     // Get the threshold.
     let threshold = safe.getThreshold().call().await?.threshold;
 
@@ -847,6 +864,23 @@ pub async fn exec_transaction(
         // Take only what we need for threshold
         approvers.truncate(threshold);
     } else if approvers.len() < threshold {
+        let owners = safe.getOwners().call().await?.owners;
+        // Find which owners haven't approved yet
+        let remaining_needed = threshold - approvers.len();
+        let mut available_signers: Vec<Address> = owners
+            .iter()
+            .filter(|owner| !approvers.contains(owner))
+            .copied()
+            .collect();
+        
+        // Sort by address for consistent output
+        available_signers.sort();
+
+        println!("\nNeed {} more signature(s) from:", remaining_needed);
+        for (i, owner) in available_signers.iter().enumerate() {
+            println!("{}. {}", i + 1, owner);
+        }
+
         return Err(eyre!(
             "Not enough signers, have {}, need {}",
             approvers.len(),
@@ -858,8 +892,7 @@ pub async fn exec_transaction(
     let mut signatures = Vec::new();
     for approver in approvers {
         // r: 32 bytes - padded address
-        signatures.extend_from_slice(&[0u8; 12]); // Pad with 12 zeros
-        signatures.extend_from_slice(approver.as_slice()); // Add 20-byte address
+        signatures.extend_from_slice(approver.into_word().as_slice());
 
         // s: 32 bytes - all zeros
         signatures.extend_from_slice(&[0u8; 32]);
@@ -868,22 +901,83 @@ pub async fn exec_transaction(
         signatures.push(1);
     }
 
-    let to = Address::from_str(&config.to)?;
-    let value = U256::from_str(&config.value)?;
-    let bytes = Bytes::from_str(&config.data)?;
+    let safe_tx_gas = U256::ZERO;
+    let base_gas = U256::ZERO;
+    let gas_price = U256::ZERO;
+    let gas_token = Address::ZERO;
+    let refund_receiver = Address::ZERO;
+
+    let to_address: Address = config.to.parse().expect("Failed to parse to");
+    let value = U256::from(config.value.parse::<U256>().expect("Failed to parse value"));
+    let data = Bytes::from(config.data.parse::<Bytes>().expect("Failed to parse data"));
     let operation = config.operation;
+
+    // Simulate the tx using tenderly.
+    let client = Client::new();
+
+    // Build input.
+    let input = GnosisSafe::execTransactionCall::new((
+        to_address,
+        value,
+        data.clone(),
+        operation,
+        safe_tx_gas,
+        base_gas,
+        gas_price,
+        gas_token,
+        refund_receiver,
+        Bytes::from(signatures.clone()),
+    ))
+    .abi_encode();
+
+    let input_hex = hex::encode(input);
+
+    let response = client
+        .post(&format!(
+            "https://api.tenderly.co/api/v1/account/{}/project/{}/simulate",
+            account_slug, project_slug
+        ))
+        .header("X-Access-Key", api_key)
+        .json(&json!({
+            "save": true,
+            "save_if_fails": true,
+            "simulation_type": "full",
+            "network_id": config.network_id,
+            "from": signer_addr,
+            "to": config.multisig,
+            "input": input_hex,
+            "gas": 10_000_000,
+        }))
+        .send()
+        .await?;
+
+    let simulation_result = response.json::<serde_json::Value>().await?;
+
+    let simulation_url = simulation_result
+        .get("simulation")
+        .and_then(|sim| sim.get("id"))
+        .and_then(|id| id.as_str())
+        .map(|simulation_id| {
+            format!(
+                "https://dashboard.tenderly.co/{}/{}/simulator/{}",
+                account_slug, project_slug, simulation_id
+            )
+        })
+        .ok_or_else(|| eyre::eyre!("Simulation ID not found in response"))?;
+
+    println!("Simulation url: {}", simulation_url);
 
     let exec_transaction_tx_request = safe
         .execTransaction(
-            to,
+            to_address,
             value,
-            bytes,
+            data,
             operation,
-            U256::ZERO,
-            U256::ZERO,
-            U256::ZERO,
-            Address::ZERO,
-            Address::ZERO,
+            safe_tx_gas,
+            base_gas,
+            gas_price,
+            gas_token,
+            refund_receiver,
             Bytes::from(signatures),
         )
         .into_transaction_request();
