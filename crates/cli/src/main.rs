@@ -131,7 +131,7 @@ async fn main() -> Result<()> {
             fs::create_dir_all("output")?;
 
             // Generate transactions
-            let configs = generate_root_update_txs(root, product, *network_id, *nonce).await?;
+            let (configs, _strategists) = generate_root_update_txs(root, product, *network_id, *nonce).await?;
 
             // Save each config to a numbered JSON file
             for (i, config) in configs.iter().enumerate() {
@@ -201,7 +201,7 @@ async fn main() -> Result<()> {
             ledger,
         } => {
             // Generate the transaction configs
-            let configs = generate_root_update_txs(&root, &product, *network_id, *nonce).await?;
+            let (configs, strategists)  = generate_root_update_txs(&root, &product, *network_id, *nonce).await?;
     
             // Process based on number of configs
             match configs.len() {
@@ -233,6 +233,7 @@ async fn main() -> Result<()> {
                     &configs[0],
                     &root,
                     &safe_hash,
+                    &strategists,
                     &tx_url,
                     simulation_url,
                 )?;
@@ -275,12 +276,13 @@ async fn main() -> Result<()> {
                     &configs[0],
                     &root,
                     &propose_hash,
+                    &strategists,
                     &tx_url,
                     simulation_url.clone(),
                 )?;
             }
 
-                        // Handle second transaction
+            // Handle second transaction
             if prompt_user_confirmation("Would you like to approve the execute transaction?")? {
                 let wallet_type = if *trezor {
                     HardwareWalletType::TREZOR
@@ -297,6 +299,7 @@ async fn main() -> Result<()> {
                     &configs[1],
                     &root,
                     &execute_hash,
+                    &strategists,
                     &tx_url,
                     simulation_url,
                 )?;
@@ -325,20 +328,10 @@ fn print_transaction_summary(
     tx_config: &SimulationConfig,
     root: &str,
     safe_hash: &str,
+    strategists: &Vec<String>,
     tx_url: &str,
     simulation_url: String,
 ) -> Result<()> {
-    // Get strategists from config
-    let config_content = fs::read_to_string("config.toml")?;
-    let config: Value = config_content.parse()?;
-    let strategists = config
-        .get("product")
-        .and_then(|p| p.get(product))
-        .and_then(|p| p.get(&network_id.to_string()))
-        .and_then(|p| p.get("strategists"))
-        .and_then(|s| s.as_array())
-        .ok_or_else(|| eyre!("Could not find strategists in config"))?;
-
     println!("\n# {} (Network: {})", product, network_id);
     println!("\n## Transaction Data");
     println!("```json");
@@ -347,7 +340,7 @@ fn print_transaction_summary(
     
     println!("\n## Strategists");
     for (i, strategist) in strategists.iter().enumerate() {
-        println!("{}. {}", i + 1, strategist.as_str().unwrap_or("Invalid address"));
+        println!("{}. {}", i + 1, strategist);
     }
     
     println!("\n## New Root");

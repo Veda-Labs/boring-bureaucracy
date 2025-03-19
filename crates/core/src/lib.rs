@@ -458,7 +458,7 @@ pub async fn generate_root_update_txs(
     product_name: &str,
     network_id: u32,
     nonce: u32,
-) -> Result<Vec<SimulationConfig>> {
+) -> Result<(Vec<SimulationConfig>, Vec<String>)> {
     // Trim "0x" prefix if present
     let root_str = root_str.trim_start_matches("0x");
     // Convert hex string to Vec<u8>
@@ -665,7 +665,9 @@ pub async fn generate_root_update_txs(
         }
     }
 
-    Ok(txs)
+    let strategists = strategists.into_iter().map(|strategist| strategist.as_str().unwrap().to_string()).collect();
+
+    Ok((txs, strategists))
 }
 
 pub enum HardwareWalletType {
