@@ -14,6 +14,7 @@
 1923 = "https://swellscan.xyz/"
 8453 = "https://basescan.org/"
 56 = "https://bscscan.com/"
+60808 = "https://explorer.gobob.xyz/"
 
 [multi_send_address]
 default = "40A2aCCbd92BCA938b02010E17A5b8929b49130D"
