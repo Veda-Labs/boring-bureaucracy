@@ -155,7 +155,7 @@ cargo run --bin cli propose-transaction \
 --product lbtc_v \
 --network 1 \
 --nonce 25 \
---trezor \
+--trezor
 ```
 
 #### Execute with Ledger
@@ -166,7 +166,7 @@ cargo run --bin cli propose-transaction \
 --product lbtc_v \
 --network 1 \
 --nonce 25 \
---ledger \
+--ledger
 ```
 
 ## Configuration
