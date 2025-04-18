@@ -1,4 +1,17 @@
+pub mod actions;
+pub mod bindings;
+pub mod types;
+use crate::{
+    actions::{
+        multisend_utils::create_multisend_data, set_merkle_root_action::SetMerkleRoot,
+        set_rate_provider_data_action::SetRateProviderData, timelock_action::TimelockAction,
+        update_asset_data_action::UpdateAssetData,
+    },
+    bindings::{accountant::AccountantWithRateProviders, teller::TellerWithMultiAssetSupport},
+    types::transaction::Transaction,
+};
 use GnosisSafe::GnosisSafeInstance;
+use actions::admin_action::AdminAction;
 use alloy::network::EthereumWallet;
 use alloy::primitives::{Address, Bytes, FixedBytes, U256};
 use alloy::providers::Provider;
@@ -12,11 +25,384 @@ use eyre::{Result, eyre};
 use hex;
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
-use serde_json::json;
+use serde_json::{Value, json};
+use std::collections::{HashMap, HashSet};
 use std::time::{SystemTime, UNIX_EPOCH};
 use std::{env, fs};
-use toml::Value;
 use uuid::Uuid;
+
+#[derive(Serialize, Deserialize)]
+pub struct SimulationConfig {
+    pub network_id: u32,
+    pub multisig: String,
+    pub to: String,
+    pub value: String,
+    pub data: String,
+    pub operation: u8,
+    pub nonce: u32,
+}
+// Should return the min number of actions which really should just be 2
+// could revert if you have a value that relies on multiple multisigs...
+pub async fn generate_admin_actions_from_json(
+    value: Value,
+) -> Result<(Vec<SimulationConfig>, Vec<Vec<String>>)> {
+    dotenv().ok();
+    // Extract the required fields from the JSON
+    let network_id = value["network_id"]
+        .as_u64()
+        .ok_or_else(|| eyre!("network_id must be a number"))? as u32;
+
+    let nonce = value["nonce"]
+        .as_u64()
+        .ok_or_else(|| eyre!("nonce must be a number"))? as u32;
+
+    let actions = value["actions"]
+        .as_array()
+        .ok_or_else(|| eyre!("actions must be an array"))?;
+
+    // Load config.toml only once
+    let config_content = fs::read_to_string("config.toml")?;
+    let config: toml::Value = config_content.parse::<toml::Value>()?;
+
+    // Check that all products use the same multisig address
+    let mut multisig_addresses = HashSet::new();
+
+    for action in actions {
+        let product = action["product"]
+            .as_str()
+            .ok_or_else(|| eyre!("product must be a string"))?;
+
+        // Get multisig address for this product
+        let multisig_address =
+            get_product_config_value(&config, product, network_id, "multisig_address")?;
+
+        multisig_addresses.insert(multisig_address);
+    }
+
+    if multisig_addresses.len() > 1 {
+        return Err(eyre!(
+            "Cannot combine actions for products with different multisig addresses"
+        ));
+    }
+
+    // Now process each action
+    let mut admin_actions: HashMap<Option<Address>, Vec<Box<dyn AdminAction>>> = HashMap::new();
+
+    for action in actions {
+        let product = action["product"]
+            .as_str()
+            .ok_or_else(|| eyre!("product must be a string"))?;
+
+        let timelock_addr =
+            match get_product_config_value(&config, product, network_id, "timelock_address") {
+                Ok(addr) => Some(addr.parse::<Address>()?),
+                Err(_) => None, // Timelock is optional
+            };
+
+        let mut timelock_actions = admin_actions.entry(timelock_addr).or_insert_with(Vec::new);
+
+        // Process merkle root updates if present
+        if let Some(root_str) = action["new_root"].as_str() {
+            process_merkle_root_update(
+                &mut timelock_actions,
+                &config,
+                product,
+                network_id,
+                root_str,
+            )?;
+        }
+
+        // Process asset updates if present
+        if let Some(new_assets) = action["new_assets"].as_array() {
+            for asset_udpate in new_assets {
+                process_asset_updates(
+                    &mut timelock_actions,
+                    &config,
+                    product,
+                    network_id,
+                    asset_udpate,
+                )
+                .await?;
+            }
+        }
+
+        // TODO other admin actions
+        // // Process role updates if present
+        // if let Some(new_roles) = action["new_roles"].as_array() {
+        //     process_role_updates(&mut admin_actions, &config, product, network_id, new_roles)?;
+        // }
+    }
+
+    // Get the multisig address (we know there's only one from earlier validation)
+    let multisig_address: Address = multisig_addresses.into_iter().next().unwrap().parse()?;
+
+    let mut txs_0 = Vec::new();
+    let mut txs_1 = Vec::new();
+
+    let mut descriptions = Vec::new();
+    descriptions.push(vec![]);
+    descriptions.push(vec![]);
+
+    for (timelock_addr, actions) in admin_actions {
+        match timelock_addr {
+            Some(addr) => {
+                // Create propose and execute timelock actions
+                // Read the min delay.
+                let rpc_url = get_rpc_url(network_id)?;
+                let provider = ProviderBuilder::new().on_builtin(&rpc_url).await?;
+                let timelock = Timelock::new(addr, provider);
+                let min_delay = timelock.getMinDelay().call().await?.delay;
+                let mut timelock_action = TimelockAction::new(addr, min_delay, actions);
+                txs_0.push(Transaction {
+                    to: timelock_action.target(),
+                    value: timelock_action.value(),
+                    data: timelock_action.data(),
+                });
+                descriptions[0].push(serde_json::to_string_pretty(&timelock_action.describe())?);
+                timelock_action.toggle_mode(); // Change mode to execute.
+                txs_1.push(Transaction {
+                    to: timelock_action.target(),
+                    value: timelock_action.value(),
+                    data: timelock_action.data(),
+                });
+                descriptions[1].push(serde_json::to_string_pretty(&timelock_action.describe())?);
+            }
+            None => {
+                for action in actions {
+                    txs_0.push(Transaction {
+                        to: action.target(),
+                        value: action.value(),
+                        data: action.data(),
+                    });
+                    descriptions[0].push(serde_json::to_string_pretty(&action.describe())?);
+                }
+            }
+        }
+    }
+
+    // Convert txs to multisend txs if needed.
+    let multisend = get_multisend_address(network_id as u32)?;
+    let multisend_addr: Address = multisend.parse().unwrap();
+
+    let mut final_configs = Vec::new();
+
+    match txs_0.len() {
+        0 => return Err(eyre!("No transactions to send")),
+        1 => final_configs.push(SimulationConfig {
+            network_id,
+            multisig: multisig_address.to_string(),
+            to: txs_0[0].to.to_string(),
+            value: txs_0[0].value.to_string(),
+            data: format!("0x{}", hex::encode(txs_0[0].data.clone())),
+            operation: 0,
+            nonce,
+        }),
+        _ => {
+            let data = create_multisend_data(txs_0);
+            final_configs.push(SimulationConfig {
+                network_id,
+                multisig: multisig_address.to_string(),
+                to: multisend_addr.to_string(),
+                value: "0".to_string(),
+                data: format!("0x{}", hex::encode(data)),
+                operation: 1,
+                nonce,
+            });
+        }
+    }
+
+    match txs_1.len() {
+        0 => {} // Do nothing
+        1 => final_configs.push(SimulationConfig {
+            network_id,
+            multisig: multisig_address.to_string(),
+            to: txs_1[0].to.to_string(),
+            value: txs_1[0].value.to_string(),
+            data: format!("0x{}", hex::encode(txs_1[0].data.clone())),
+            operation: 0,
+            nonce: nonce + 1,
+        }),
+        _ => {
+            let data = create_multisend_data(txs_1);
+            final_configs.push(SimulationConfig {
+                network_id,
+                multisig: multisig_address.to_string(),
+                to: multisend_addr.to_string(),
+                value: "0".to_string(),
+                data: format!("0x{}", hex::encode(data)),
+                operation: 1,
+                nonce: nonce + 1,
+            });
+        }
+    }
+
+    Ok((final_configs, descriptions))
+}
+
+fn get_product_config_value(
+    config: &toml::Value,
+    product: &str,
+    network_id: u32,
+    key: &str,
+) -> Result<String> {
+    // Try network specific value first
+    let value = config
+        .get("product")
+        .and_then(|p| p.get(product))
+        .and_then(|p| p.get(&network_id.to_string()))
+        .and_then(|p| p.get(key))
+        .or_else(|| {
+            // Fallback to default if network specific not found
+            config
+                .get("product")
+                .and_then(|p| p.get(product))
+                .and_then(|p| p.get("default"))
+                .and_then(|p| p.get(key))
+        })
+        .and_then(|v| v.as_str())
+        .ok_or_else(|| eyre!("{} not found for product: {}", key, product))?;
+
+    Ok(value.to_string())
+}
+
+// Helper function to get strategist addresses array
+fn get_product_strategists(
+    config: &toml::Value,
+    product: &str,
+    network_id: u32,
+) -> Result<Vec<String>> {
+    // Try network specific value first
+    let strategists = config
+        .get("product")
+        .and_then(|p| p.get(product))
+        .and_then(|p| p.get(&network_id.to_string()))
+        .and_then(|p| p.get("strategists"))
+        .or_else(|| {
+            // Fallback to default if network specific not found
+            config
+                .get("product")
+                .and_then(|p| p.get(product))
+                .and_then(|p| p.get("default"))
+                .and_then(|p| p.get("strategists"))
+        })
+        .and_then(|s| s.as_array())
+        .ok_or_else(|| eyre!("strategists not found for product: {}", product))?;
+
+    let result = strategists
+        .iter()
+        .filter_map(|s| s.as_str().map(|s| s.to_string()))
+        .collect();
+
+    Ok(result)
+}
+
+// Process merkle root update action
+fn process_merkle_root_update(
+    admin_actions: &mut Vec<Box<dyn AdminAction>>,
+    config: &toml::Value,
+    product: &str,
+    network_id: u32,
+    root_str: &str,
+) -> Result<()> {
+    // Remove "0x" prefix if present and convert to bytes
+    let root_str = root_str.trim_start_matches("0x");
+    let root_bytes = hex::decode(root_str)?;
+    let root = FixedBytes::<32>::from_slice(&root_bytes);
+
+    // Get manager address for the product
+    let manager_addr_str =
+        get_product_config_value(config, product, network_id, "manager_address")?;
+    let manager_addr = manager_addr_str.parse::<Address>()?;
+
+    // Get strategists
+    let strategists = get_product_strategists(config, product, network_id)?;
+
+    // Add a SetMerkleRootAction for each strategist
+    for strategist_str in strategists {
+        let strategist_addr = strategist_str.parse::<Address>()?;
+
+        let action = SetMerkleRoot::new(manager_addr, strategist_addr, root);
+
+        admin_actions.push(Box::new(action));
+    }
+
+    Ok(())
+}
+
+// TODO I guess this should handle withdraws too?
+async fn process_asset_updates(
+    admin_actions: &mut Vec<Box<dyn AdminAction>>,
+    config: &toml::Value,
+    product: &str,
+    network_id: u32,
+    asset_data: &Value,
+) -> Result<()> {
+    // Get addresses from config
+    let teller_addr_str = get_product_config_value(config, product, network_id, "teller_address")?;
+    let accountant_addr_str =
+        get_product_config_value(config, product, network_id, "accountant_address")?;
+
+    let teller_addr = teller_addr_str.parse::<Address>()?;
+    let accountant_addr = accountant_addr_str.parse::<Address>()?;
+    let asset_addr = asset_data["asset"]
+        .as_str()
+        .ok_or_else(|| eyre!("asset must be a string"))?
+        .parse::<Address>()?;
+
+    // Query current rate provider data
+    let provider = ProviderBuilder::new()
+        .on_builtin(&get_rpc_url(network_id)?)
+        .await?;
+    let accountant = AccountantWithRateProviders::new(accountant_addr, provider.clone());
+    let current_rate_data = accountant.rateProviderData(asset_addr).call().await?;
+
+    // Check if rate provider data needs updating
+    let new_is_pegged = asset_data["is_pegged_to_base"]
+        .as_bool()
+        .ok_or_else(|| eyre!("is_pegged_to_base must be a boolean"))?;
+    let new_rate_provider = asset_data["rate_provider"]
+        .as_str()
+        .map(|s| s.parse::<Address>().ok())
+        .flatten();
+
+    if current_rate_data.rpd.isPeggedToBase != new_is_pegged
+        || current_rate_data.rpd.rateProvider != new_rate_provider.unwrap_or_default()
+    {
+        let action = SetRateProviderData::new(accountant_addr, asset_addr, new_rate_provider);
+        admin_actions.push(Box::new(action));
+    }
+
+    // Query current asset data
+    let teller = TellerWithMultiAssetSupport::new(teller_addr, provider);
+    let current_asset_data = teller.assetData(asset_addr).call().await?;
+
+    // Check if asset data needs updating
+    let new_allow_deposits = asset_data["allow_deposits"]
+        .as_bool()
+        .ok_or_else(|| eyre!("allow_deposits must be a boolean"))?;
+    let new_allow_withdraws = asset_data["allow_withdraws"]
+        .as_bool()
+        .ok_or_else(|| eyre!("allow_withdraws must be a boolean"))?;
+    let new_share_premium = asset_data["share_premium"]
+        .as_u64()
+        .ok_or_else(|| eyre!("share_premium must be a number"))? as u16;
+
+    if current_asset_data.asset.allowDeposits != new_allow_deposits
+        || current_asset_data.asset.allowWithdraws != new_allow_withdraws
+        || current_asset_data.asset.sharePremium != new_share_premium
+    {
+        let action = UpdateAssetData::new(
+            teller_addr,
+            asset_addr,
+            new_allow_deposits,
+            new_allow_withdraws,
+            new_share_premium,
+        );
+        admin_actions.push(Box::new(action));
+    }
+
+    Ok(())
+}
 
 sol! {
     #[sol(rpc)]
@@ -78,17 +464,6 @@ sol! {
     }
 }
 
-#[derive(Serialize, Deserialize)]
-pub struct SimulationConfig {
-    pub network_id: u32,
-    pub multisig: String,
-    pub to: String,
-    pub value: String,
-    pub data: String,
-    pub operation: u8,
-    pub nonce: u32,
-}
-
 fn read_simulation_config(file_path: &str) -> Result<SimulationConfig> {
     let file_content = fs::read_to_string(file_path)?;
     let config: SimulationConfig = serde_json::from_str(&file_content)?;
@@ -97,7 +472,7 @@ fn read_simulation_config(file_path: &str) -> Result<SimulationConfig> {
 
 fn get_rpc_url(network_id: u32) -> Result<String> {
     let config_content = fs::read_to_string("config.toml")?;
-    let config: Value = config_content.parse::<Value>()?;
+    let config: toml::Value = config_content.parse::<toml::Value>()?;
 
     let url_value = &config["rpc_endpoints"][&network_id.to_string()];
     let url_str = url_value
@@ -112,9 +487,11 @@ fn get_rpc_url(network_id: u32) -> Result<String> {
     }
 }
 
+// TODO append calldata to the end of approve hash call that has the nonce?
+
 fn get_block_explorer_url(network_id: u32) -> Result<String> {
     let config_content = fs::read_to_string("config.toml")?;
-    let config: Value = config_content.parse::<Value>()?;
+    let config: toml::Value = config_content.parse::<toml::Value>()?;
 
     let url_value = &config["block_explorers"][&network_id.to_string()];
     let url_str = url_value.as_str().ok_or_else(|| {
@@ -185,7 +562,7 @@ pub async fn simulate_admin_tx_and_generate_safe_hash(
         .send()
         .await?;
 
-    let simulation_result = response.json::<serde_json::Value>().await?;
+    let simulation_result = response.json::<Value>().await?;
 
     let simulation_url = simulation_result
         .get("simulation")
@@ -282,20 +659,20 @@ pub async fn simulate_timelock_admin_txs_and_generate_safe_hashes(
             execute_config.network_id
         ));
     }
-    if propose_config.to != execute_config.to {
-        return Err(eyre::eyre!(
-            "Target addresses do not match: propose={}, execute={}",
-            propose_config.to,
-            execute_config.to
-        ));
-    }
-    if propose_config.operation != execute_config.operation {
-        return Err(eyre::eyre!(
-            "Operations do not match: propose={}, execute={}",
-            propose_config.operation,
-            execute_config.operation
-        ));
-    }
+    // if propose_config.to != execute_config.to {
+    //     return Err(eyre::eyre!(
+    //         "Target addresses do not match: propose={}, execute={}",
+    //         propose_config.to,
+    //         execute_config.to
+    //     ));
+    // }
+    // if propose_config.operation != execute_config.operation {
+    //     return Err(eyre::eyre!(
+    //         "Operations do not match: propose={}, execute={}",
+    //         propose_config.operation,
+    //         execute_config.operation
+    //     ));
+    // }
 
     let from_address = "0xe2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2";
 
@@ -432,7 +809,7 @@ pub async fn simulate_timelock_admin_txs_and_generate_safe_hashes(
 
 fn get_multisend_address(network_id: u32) -> Result<String> {
     let config_content = fs::read_to_string("config.toml")?;
-    let config: Value = config_content.parse::<Value>()?;
+    let config: toml::Value = config_content.parse::<toml::Value>()?;
 
     // Try network specific value first
     let network_value = config
@@ -468,10 +845,10 @@ pub async fn generate_root_update_txs(
 
     // Read and parse config.toml
     let config_content = fs::read_to_string("config.toml")?;
-    let config: Value = config_content.parse::<Value>()?;
+    let config: toml::Value = config_content.parse::<toml::Value>()?;
 
     // Helper function to get config value from product section
-    let get_product_value = |key: &str| -> Result<Value> {
+    let get_product_value = |key: &str| -> Result<toml::Value> {
         // Try network specific value first
         let network_value = config
             .get("product")
@@ -488,7 +865,7 @@ pub async fn generate_root_update_txs(
 
         if key == "timelock_address" {
             Ok(network_value.or(default_value).cloned().unwrap_or_else(|| {
-                Value::String("0x0000000000000000000000000000000000000000".to_string())
+                toml::Value::String("0x0000000000000000000000000000000000000000".to_string())
             }))
         } else {
             network_value
@@ -665,7 +1042,10 @@ pub async fn generate_root_update_txs(
         }
     }
 
-    let strategists = strategists.into_iter().map(|strategist| strategist.as_str().unwrap().to_string()).collect();
+    let strategists = strategists
+        .into_iter()
+        .map(|strategist| strategist.as_str().unwrap().to_string())
+        .collect();
 
     Ok((txs, strategists))
 }
@@ -874,7 +1254,7 @@ pub async fn exec_transaction(
             .filter(|owner| !approvers.contains(owner))
             .copied()
             .collect();
-        
+
         // Sort by address for consistent output
         available_signers.sort();
 

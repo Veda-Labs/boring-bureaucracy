@@ -1,12 +1,13 @@
 use clap::{Parser, Subcommand};
 use core::{
-    HardwareWalletType, approve_hash, exec_transaction, generate_root_update_txs,
-    simulate_admin_tx_and_generate_safe_hash, simulate_timelock_admin_txs_and_generate_safe_hashes, SimulationConfig
+    HardwareWalletType, SimulationConfig, approve_hash, exec_transaction,
+    generate_admin_actions_from_json, generate_root_update_txs,
+    simulate_admin_tx_and_generate_safe_hash, simulate_timelock_admin_txs_and_generate_safe_hashes,
 };
 use eyre::{Result, eyre};
+use serde_json::Value;
 use std::fs;
 use std::path::Path;
-use serde_json::Value;
 
 #[derive(Parser)]
 #[command(author, version, about, long_about = None)]
@@ -105,6 +106,12 @@ enum Commands {
         #[arg(long = "ledger", short = 'l', conflicts_with = "trezor")]
         ledger: bool,
     },
+    /// Generates admin txs from json
+    FromJson {
+        /// Path to the JSON file
+        #[arg(long = "tx", short = 'p')]
+        tx_path: String,
+    },
 }
 
 #[tokio::main]
@@ -131,7 +138,8 @@ async fn main() -> Result<()> {
             fs::create_dir_all("output")?;
 
             // Generate transactions
-            let (configs, _strategists) = generate_root_update_txs(root, product, *network_id, *nonce).await?;
+            let (configs, _strategists) =
+                generate_root_update_txs(root, product, *network_id, *nonce).await?;
 
             // Save each config to a numbered JSON file
             for (i, config) in configs.iter().enumerate() {
@@ -192,7 +200,7 @@ async fn main() -> Result<()> {
             let tx_url = exec_transaction(tx_path, wallet_type).await?;
             println!("Transaction URL: {}", tx_url);
         }
-        Commands::ProposeTransaction{
+        Commands::ProposeTransaction {
             root,
             product,
             network_id,
@@ -201,112 +209,143 @@ async fn main() -> Result<()> {
             ledger,
         } => {
             // Generate the transaction configs
-            let (configs, strategists)  = generate_root_update_txs(&root, &product, *network_id, *nonce).await?;
-    
+            let (configs, strategists) =
+                generate_root_update_txs(&root, &product, *network_id, *nonce).await?;
+
             // Process based on number of configs
             match configs.len() {
-            1 => {
-            // Save tx config to file
-            fs::write(
-                "output/single.json",
-                serde_json::to_string_pretty(&configs[0])?,
-            )?;
-            
-            // Simulate single tx
-            let (simulation_url, safe_hash) = simulate_admin_tx_and_generate_safe_hash("output/single.json").await?;
-            println!("\nSimulation URL: {}", simulation_url);
+                1 => {
+                    // Save tx config to file
+                    fs::write(
+                        "output/single.json",
+                        serde_json::to_string_pretty(&configs[0])?,
+                    )?;
 
-            // Ask user if they want to approve
-            if prompt_user_confirmation("Would you like to approve this transaction?")? {
-                let wallet_type = if *trezor {
-                    HardwareWalletType::TREZOR
-                } else {
-                    HardwareWalletType::LEDGER
-                };
-                
-                let tx_url = approve_hash("output/single.json", wallet_type).await?;
-                
-                // Generate and print summary
-                print_transaction_summary(
-                    &product,
-                    *network_id,
-                    &configs[0],
-                    &root,
-                    &safe_hash,
-                    &strategists,
-                    &tx_url,
-                    simulation_url,
-                )?;
+                    // Simulate single tx
+                    let (simulation_url, safe_hash) =
+                        simulate_admin_tx_and_generate_safe_hash("output/single.json").await?;
+                    println!("\nSimulation URL: {}", simulation_url);
+
+                    // Ask user if they want to approve
+                    if prompt_user_confirmation("Would you like to approve this transaction?")? {
+                        let wallet_type = if *trezor {
+                            HardwareWalletType::TREZOR
+                        } else {
+                            HardwareWalletType::LEDGER
+                        };
+
+                        let tx_url = approve_hash("output/single.json", wallet_type).await?;
+
+                        // Generate and print summary
+                        print_transaction_summary(
+                            &product,
+                            *network_id,
+                            &configs[0],
+                            &root,
+                            &safe_hash,
+                            &strategists,
+                            &tx_url,
+                            simulation_url,
+                        )?;
+                    }
+                }
+                2 => {
+                    // Save both tx configs
+                    fs::write(
+                        "output/propose.json",
+                        serde_json::to_string_pretty(&configs[0])?,
+                    )?;
+                    fs::write(
+                        "output/execute.json",
+                        serde_json::to_string_pretty(&configs[1])?,
+                    )?;
+
+                    // Simulate timelock txs
+                    let (simulation_url, propose_hash, execute_hash) =
+                        simulate_timelock_admin_txs_and_generate_safe_hashes(
+                            "output/propose.json".to_string(),
+                            "output/execute.json".to_string(),
+                        )
+                        .await?;
+
+                    println!("\nSimulation URL: {}", simulation_url);
+
+                    // Handle first transaction
+                    if prompt_user_confirmation(
+                        "Would you like to approve the propose transaction?",
+                    )? {
+                        let wallet_type = if *trezor {
+                            HardwareWalletType::TREZOR
+                        } else {
+                            HardwareWalletType::LEDGER
+                        };
+
+                        let tx_url = approve_hash("output/propose.json", wallet_type).await?;
+
+                        // Print summary for propose tx
+                        print_transaction_summary(
+                            &product,
+                            *network_id,
+                            &configs[0],
+                            &root,
+                            &propose_hash,
+                            &strategists,
+                            &tx_url,
+                            simulation_url.clone(),
+                        )?;
+                    }
+
+                    // Handle second transaction
+                    if prompt_user_confirmation(
+                        "Would you like to approve the execute transaction?",
+                    )? {
+                        let wallet_type = if *trezor {
+                            HardwareWalletType::TREZOR
+                        } else {
+                            HardwareWalletType::LEDGER
+                        };
+
+                        let tx_url = approve_hash("output/execute.json", wallet_type).await?;
+
+                        // Print summary for execute tx
+                        print_transaction_summary(
+                            &product,
+                            *network_id,
+                            &configs[1],
+                            &root,
+                            &execute_hash,
+                            &strategists,
+                            &tx_url,
+                            simulation_url,
+                        )?;
+                    }
+                }
+                _ => return Err(eyre!("Unexpected number of transactions generated")),
             }
         }
-        2 => {
-            // Save both tx configs
-            fs::write(
-                "output/propose.json",
-                serde_json::to_string_pretty(&configs[0])?,
-            )?;
-            fs::write(
-                "output/execute.json",
-                serde_json::to_string_pretty(&configs[1])?,
-            )?;
-            
-            // Simulate timelock txs
-            let (simulation_url, propose_hash, execute_hash) = 
-                simulate_timelock_admin_txs_and_generate_safe_hashes(
-                    "output/propose.json".to_string(),
-                    "output/execute.json".to_string(),
-                ).await?;
-            
-            println!("\nSimulation URL: {}", simulation_url);
+        Commands::FromJson { tx_path } => {
+            // Read and parse the JSON file
+            let file_content = fs::read_to_string(tx_path)?;
+            let json_value: Value = serde_json::from_str(&file_content)?;
 
-            // Handle first transaction
-            if prompt_user_confirmation("Would you like to approve the propose transaction?")? {
-                let wallet_type = if *trezor {
-                    HardwareWalletType::TREZOR
-                } else {
-                    HardwareWalletType::LEDGER
-                };
-                
-                let tx_url = approve_hash("output/propose.json", wallet_type).await?;
-                
-                // Print summary for propose tx
-                print_transaction_summary(
-                    &product,
-                    *network_id,
-                    &configs[0],
-                    &root,
-                    &propose_hash,
-                    &strategists,
-                    &tx_url,
-                    simulation_url.clone(),
-                )?;
+            // Generate the configs and descriptions
+            let (configs, descriptions) = generate_admin_actions_from_json(json_value).await?;
+
+            // Print each description
+            for (i, desc) in descriptions.into_iter().enumerate() {
+                println!("=== Transaction {} ===", i);
+                for d in desc {
+                    println!("{}", d);
+                }
+                println!("=====================\n");
             }
 
-            // Handle second transaction
-            if prompt_user_confirmation("Would you like to approve the execute transaction?")? {
-                let wallet_type = if *trezor {
-                    HardwareWalletType::TREZOR
-                } else {
-                    HardwareWalletType::LEDGER
-                };
-                
-                let tx_url = approve_hash("output/execute.json", wallet_type).await?;
-                
-                // Print summary for execute tx
-                print_transaction_summary(
-                    &product,
-                    *network_id,
-                    &configs[1],
-                    &root,
-                    &execute_hash,
-                    &strategists,
-                    &tx_url,
-                    simulation_url,
-                )?;
+            // Save each config to its own file
+            for (i, config) in configs.into_iter().enumerate() {
+                let config_json = serde_json::to_string_pretty(&config)?;
+                let filename = format!("output/tx_{}.json", i);
+                fs::write(filename, config_json)?;
             }
-        }
-        _ => return Err(eyre!("Unexpected number of transactions generated")),
-    }
         }
     }
 
@@ -337,21 +376,21 @@ fn print_transaction_summary(
     println!("```json");
     println!("{}", serde_json::to_string_pretty(tx_config)?);
     println!("```");
-    
+
     println!("\n## Strategists");
     for (i, strategist) in strategists.iter().enumerate() {
         println!("{}. {}", i + 1, strategist);
     }
-    
+
     println!("\n## New Root");
     println!("`{}`", root);
-    
+
     println!("\n## Safe Hash");
     println!("`{}`", safe_hash);
-    
+
     println!("\n## Links");
     println!("- [Proposal Transaction]({})", tx_url);
     println!("- [Simulation]({})", simulation_url);
-    
+
     Ok(())
 }

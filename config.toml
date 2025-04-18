@@ -66,8 +66,8 @@ strategists = [
 multisig_address = "0xCEA8039076E35a825854c5C2f85659430b06ec96"
 vault_address = "0x657e8C867D8B37dCC18fA4Caead9C45EB088C642"
 manager_address = "0x382d0106F308864D5462332D9D3bB54a60384B70"
-accountant_address = "0x"
-teller_address = "0x"
+accountant_address = "0x1b293DC39F94157fA0D1D36d7e0090C8B8B8c13F"
+teller_address = "0x6Ee3aaCcf9f2321E49063C4F8da775DdBd407268"
 timelock_address = "0x70a64840A353c58f63333570f53dba0948bEcE3d"
 roles_authority_address = "0x6889E57BcA038C28520C0B047a75e567502ea5F6"
 strategists = [
@@ -165,7 +165,32 @@ strategists = [
     "0x65716abb00ec074c3c1991a213b41cdc54e8212b",
 ]
 
+[product.prime_liquid_bera_btc.80094]
+multisig_address = "0x183fE88858AAB892cc796662200374e3dF6927E3"
+vault_address = "0x46fcd35431f5B371224ACC2e2E91732867B1A77e"
+manager_address = "0x7280E05ccF01066C715aDc936f860BD65510f816"
+accountant_address = "0x4faE50B524e0D05BD73fDF28b273DB7D4A57CCe9"
+teller_address = "0x"
+roles_authority_address = "0x1C54f57Fc3879C558915BCEa996DB1dA422fC8BE"
+strategists = [
+    "0x560441fa211aed16dd49f70c226380c9d4875225",
+    "0x65716abb00ec074c3c1991a213b41cdc54e8212b",
+]
+
 [product.liquid_btc.1]
+multisig_address = "0xCEA8039076E35a825854c5C2f85659430b06ec96"
+vault_address = "0x5f46d540b6eD704C3c8789105F30E075AA900726"
+manager_address = "0xaFa8c08bedB2eC1bbEb64A7fFa44c604e7cca68d"
+accountant_address = "0xEa23aC6D7D11f6b181d6B98174D334478ADAe6b0"
+teller_address = "0x"
+roles_authority_address = "0x49F954c67ff235034b69b8a59fbe309A40256c8d"
+strategists = [
+    "0x41DFc53B13932a2690C9790527C1967d8579a6ae",
+    "0x71E2d6c34f569cC4Df5802d675B208FB8AE3Bcd6",
+    "0x6fA5d361Ab8165347F636217001E22a7cEF09B48",
+]
+
+[product.liquid_btc.80094]
 multisig_address = "0xCEA8039076E35a825854c5C2f85659430b06ec96"
 vault_address = "0x5f46d540b6eD704C3c8789105F30E075AA900726"
 manager_address = "0xaFa8c08bedB2eC1bbEb64A7fFa44c604e7cca68d"
