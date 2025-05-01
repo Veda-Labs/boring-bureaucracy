@@ -1,0 +1,25 @@
+{
+  "network_id": 1,
+  "actions": [
+    {
+      "product": "liquid_eth",
+      "new_root": "0x1b5c78b3c41dde5c1e05714de102c877094e9cbbcc3996091197d01ad910a63a",
+      "new_assets": [
+        {
+          "asset": "0xCAcd6fd266aF91b8AeD52aCCc382b4e165586E29",
+          "allow_deposits": true,
+          "allow_withdraws": true,
+          "share_premium": 0,
+          "rate_provider": "0x0000000000000000000000000000000000000000",
+          "is_pegged_to_base": true
+        }
+      ],
+      "new_roles": []
+    },
+    {
+      "product": "e_btc",
+      "new_root": "0x1b5c78b3c41dde5c1e05714de102c877094e9cbbcc3996091197d01ad910a63a"
+    }
+  ],
+  "nonce": 169
+}
