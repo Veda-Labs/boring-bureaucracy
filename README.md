@@ -169,6 +169,14 @@ cargo run --bin cli propose-transaction \
 --ledger
 ```
 
+### Proposing Safe Transaction Hash using Json Configuration
+
+```bash
+cargo run --bin cli from-json --tx input/queued/etherfi_05_01_2025.json
+```
+
+Note send the tx onchain by passing `-t` or `-l`
+
 ## Configuration
 
 Product configurations are managed through `config.toml`. Each product can have network-specific settings and defaults.
