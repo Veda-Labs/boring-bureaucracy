@@ -25,6 +25,7 @@ use alloy::{providers::ProviderBuilder, sol_types::SolCall};
 use dotenv::dotenv;
 use eyre::{Result, eyre};
 use hex;
+use processors::withdraw_asset_update::process_queue_asset_updates;
 use reqwest::Client;
 use serde_json::{Value, json};
 use std::collections::{HashMap, HashSet};
@@ -101,6 +102,14 @@ pub async fn generate_admin_actions_from_json(
         if let Some(new_assets) = action["new_assets"].as_array() {
             for asset_update in new_assets {
                 process_asset_updates(&mut action_sub_set, &cw, product, network_id, asset_update)
+                    .await?;
+            }
+        }
+
+        // Process withdraw asset updates if present.
+        if let Some(new_queue_assets) = action["new_queue_assets"].as_array() {
+            for queue_asset in new_queue_assets {
+                process_queue_asset_updates(action_sub_set, &cw, product, network_id, queue_asset)
                     .await?;
             }
         }

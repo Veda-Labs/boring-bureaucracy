@@ -1,4 +1,5 @@
 pub mod accountant;
+pub mod boring_queue;
 pub mod manager;
 pub mod multisend;
 pub mod multisig;

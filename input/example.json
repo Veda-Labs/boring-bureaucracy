@@ -14,6 +14,19 @@
           "is_pegged_to_base": true
         }
       ],
+      "new_queue_assets": [
+        {
+          "asset": "0xCAcd6fd266aF91b8AeD52aCCc382b4e165586E29",
+          "allow_withdraws": true,
+          "seconds_to_maturity": 86400,
+          "minimum_seconds_to_deadline": 86400,
+          "min_discount": 1,
+          "max_discount": 9,
+          "minimum_shares": 0,
+          "rate_provider": "0x0000000000000000000000000000000000000000",
+          "is_pegged_to_base": true
+        }
+      ],
       "new_roles": []
     },
     {
