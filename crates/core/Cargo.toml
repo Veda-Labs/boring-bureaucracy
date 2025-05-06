@@ -30,9 +30,9 @@ alloy = { version = "0.11.1", features = [
 # Hex handling
 hex = "0.4.3"
 
-
 # TOML
 toml = "0.8.20"
 
-
 uuid = { version = "1.15.1", features = ["v4"] }
+
+into_trait = { path = "../into_trait" }

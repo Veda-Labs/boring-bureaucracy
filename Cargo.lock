@@ -1174,6 +1174,7 @@ dependencies = [
  "dotenv",
  "eyre",
  "hex",
+ "into_trait",
  "reqwest",
  "serde",
  "serde_json",
@@ -2061,6 +2062,15 @@ dependencies = [
  "equivalent",
  "hashbrown 0.15.2",
  "serde",
+]
+
+[[package]]
+name = "into_trait"
+version = "0.1.0"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 2.0.99",
 ]
 
 [[package]]
