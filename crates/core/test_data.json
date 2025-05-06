@@ -1,0 +1,14 @@
+[
+            {
+                "type_field": "TypeA",
+                "value_a": "hello"
+            },
+            {
+                "type_field": "TypeB",
+                "count": 123
+            },
+            {
+                "type_field": "TypeA",
+                "value_a": "world"
+            }
+        ]
