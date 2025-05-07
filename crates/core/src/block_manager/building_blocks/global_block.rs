@@ -389,8 +389,8 @@ mod tests {
             CacheValue::Address(address!("0xCEA8039076E35a825854c5C2f85659430b06ec96"))
         );
         // Verify manager and timelock are not set
-        assert!(cache.get("manager", "test").await.is_err());
-        assert!(cache.get("timelock", "test").await.is_err());
+        assert!(cache.get_immediate("manager").await.is_err());
+        assert!(cache.get_immediate("timelock").await.is_err());
     }
 
     #[tokio::test]

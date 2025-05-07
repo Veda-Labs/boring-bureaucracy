@@ -70,6 +70,18 @@ impl SharedCache {
         }
     }
 
+    pub async fn get_immediate(&self, key: &str) -> Result<CacheValue> {
+        let storage = self.storage.read().await;
+
+        if let Some(entry) = storage.get(key) {
+            if let Some(value) = &entry.value {
+                return Ok(value.clone());
+            }
+        }
+
+        Err(eyre!("Cache value not found: {}", key))
+    }
+
     pub async fn set(&self, key: &str, value: CacheValue, tag: &str) -> Result<()> {
         let mut storage = self.storage.write().await;
 
