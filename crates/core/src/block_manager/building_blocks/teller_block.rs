@@ -5,8 +5,7 @@ use crate::utils::view_request_manager::ViewRequestManager;
 use alloy::primitives::Address;
 use async_trait::async_trait;
 use eyre::Result;
-use serde::{Deserialize, Serialize};
-use serde_json::{Value, json};
+use serde::Deserialize;
 
 #[derive(Debug, Deserialize)]
 pub struct TellerBlock {
@@ -16,14 +15,14 @@ pub struct TellerBlock {
 
 #[async_trait]
 impl Actionable for TellerBlock {
-    async fn to_actions(&self, vrm: &ViewRequestManager,) -> Result<Vec<Box<dyn AdminAction>>> {
+    async fn to_actions(&self, _vrm: &ViewRequestManager) -> Result<Vec<Box<dyn AdminAction>>> {
         Ok(vec![])
     }
 
     async fn resolve_and_contribute(
         &mut self,
-        cache: &SharedCache,
-        vrm: &ViewRequestManager,
+        _cache: &SharedCache,
+        _vrm: &ViewRequestManager,
     ) -> Result<()> {
         todo!()
     }

@@ -8,7 +8,7 @@ use super::building_blocks::building_block::{Actionable, BuildingBlock};
 use crate::block_manager::shared_cache::{SharedCache, SharedCacheRef};
 use crate::utils::view_request_manager::{ViewRequestManager, ViewRequestManagerRef};
 use alloy::providers::Provider;
-use alloy::{primitives::Address, providers::ProviderBuilder};
+use alloy::providers::ProviderBuilder;
 
 use eyre::Result;
 use serde_json::Value;

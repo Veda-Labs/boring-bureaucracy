@@ -1,7 +1,7 @@
 extern crate proc_macro;
 use proc_macro::TokenStream;
 use quote::quote;
-use syn::{parse_macro_input, Attribute, Data, DataEnum, DeriveInput, Path};
+use syn::{parse_macro_input, Data, DataEnum, DeriveInput};
 
 #[proc_macro_derive(IntoTraitObject, attributes(trait_name))]
 pub fn derive_into_trait_object(input: TokenStream) -> TokenStream {

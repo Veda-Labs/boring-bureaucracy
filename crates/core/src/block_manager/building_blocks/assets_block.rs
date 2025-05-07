@@ -1,13 +1,11 @@
 use super::building_block::Actionable;
 use crate::actions::admin_action::AdminAction;
-use crate::block_manager::block_manager::BlockManager;
 use crate::block_manager::shared_cache::SharedCache;
 use crate::utils::view_request_manager::ViewRequestManager;
 use alloy::primitives::Address;
 use async_trait::async_trait;
 use eyre::Result;
-use serde::{Deserialize, Serialize};
-use serde_json::{Value, json};
+use serde::Deserialize;
 
 #[derive(Debug, Deserialize)]
 pub struct AssetsBlock {
@@ -21,7 +19,7 @@ pub struct AssetsBlock {
 
 #[async_trait]
 impl Actionable for AssetsBlock {
-    async fn to_actions(&self, vrm: &ViewRequestManager,) -> Result<Vec<Box<dyn AdminAction>>> {
+    async fn to_actions(&self, _vrm: &ViewRequestManager) -> Result<Vec<Box<dyn AdminAction>>> {
         // TODO make RPC calls checking state of Teller/Accountant
         Ok(vec![])
     }
@@ -32,8 +30,8 @@ impl Actionable for AssetsBlock {
     // The bm could maybe store this json data and other blocks can read from it?
     async fn resolve_and_contribute(
         &mut self,
-        cache: &SharedCache,
-        vrm: &ViewRequestManager,
+        _cache: &SharedCache,
+        _vrm: &ViewRequestManager,
     ) -> Result<()> {
         todo!()
     }

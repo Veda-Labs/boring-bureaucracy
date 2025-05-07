@@ -109,7 +109,7 @@ mod tests {
             { "TypeA": { "value_a": "world" } }
         ]"#;
         let value: serde_json::Value = serde_json::from_str(json_data)?;
-        let processed = process_json_value(&value)?;
+        let _processed = process_json_value(&value)?;
 
         Ok(())
     }

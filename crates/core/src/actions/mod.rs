@@ -1,5 +1,6 @@
 pub mod add_asset_action;
 pub mod admin_action;
+pub mod deploy_contract_action;
 pub mod multisend_utils;
 pub mod remove_asset_action;
 pub mod set_merkle_root_action;

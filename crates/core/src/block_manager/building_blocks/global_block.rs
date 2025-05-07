@@ -47,6 +47,8 @@ pub struct GlobalBlock {
     pub timelock: Option<AddressOrContractName>,
     #[serde(default)]
     timelock_address: Option<Address>,
+    #[serde(default)]
+    executor: Option<Address>,
     // #[serde(skip_deserializing, default)]
     // pub no_read: String,
     // ...other fields
@@ -54,7 +56,7 @@ pub struct GlobalBlock {
 
 #[async_trait]
 impl Actionable for GlobalBlock {
-    async fn to_actions(&self, vrm: &ViewRequestManager) -> Result<Vec<Box<dyn AdminAction>>> {
+    async fn to_actions(&self, _vrm: &ViewRequestManager) -> Result<Vec<Box<dyn AdminAction>>> {
         Ok(vec![])
     }
 
@@ -326,6 +328,12 @@ impl Actionable for GlobalBlock {
                     }
                 }
             }
+        }
+
+        if let Some(executor) = self.executor {
+            cache
+                .set("executor", CacheValue::Address(executor), "global_block")
+                .await?;
         }
 
         Ok(())

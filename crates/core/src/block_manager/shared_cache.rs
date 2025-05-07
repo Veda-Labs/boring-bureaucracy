@@ -3,7 +3,7 @@ use eyre::{Result, eyre};
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::Duration;
-use tokio::sync::{RwLock, broadcast, oneshot};
+use tokio::sync::{RwLock, broadcast};
 // The different types that can be stored in cache
 #[derive(Debug, Clone, PartialEq)]
 pub enum CacheValue {
