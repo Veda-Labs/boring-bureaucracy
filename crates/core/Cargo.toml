@@ -34,5 +34,6 @@ hex = "0.4.3"
 toml = "0.8.20"
 
 uuid = { version = "1.15.1", features = ["v4"] }
+async-trait = "0.1.88"
 
 into_trait = { path = "../into_trait" }

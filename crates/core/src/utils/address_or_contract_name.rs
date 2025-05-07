@@ -1,7 +1,7 @@
 use alloy::primitives::Address;
 use serde::{Deserialize, Deserializer, de::Error};
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub enum AddressOrContractName {
     Address(Address),
     ContractName(String),
