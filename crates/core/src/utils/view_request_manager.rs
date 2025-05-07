@@ -13,6 +13,7 @@ use std::time::Duration;
 use tokio::sync::mpsc::{self, Receiver, Sender};
 use tokio::sync::{Mutex, oneshot};
 
+// TODO this makes more sense as an enum.
 // Request type containing all info needed for the RPC call
 #[derive(Hash, Eq, PartialEq, Clone)]
 struct ViewRequest {
@@ -42,7 +43,6 @@ impl ViewRequestManager {
         debug!("Creating ViewRequestManager");
         let (tx, rx) = mpsc::channel(100);
         let cache = Arc::new(Mutex::new(HashMap::new()));
-
         // Spawn worker pool
         debug!("Spawning {} worker(s)", num_workers);
         Self::spawn_workers(
@@ -107,6 +107,16 @@ impl ViewRequestManager {
         let request = ViewRequest {
             target,
             calldata: Some(calldata),
+            read_slot: None,
+        };
+
+        self._request(request).await
+    }
+
+    pub async fn request_code(&self, target: Address) -> Result<Bytes> {
+        let request = ViewRequest {
+            target,
+            calldata: None,
             read_slot: None,
         };
 
@@ -179,7 +189,7 @@ impl ViewRequestManager {
     where
         P: Provider + Clone + Send + Sync + 'static,
     {
-        if request.calldata.is_none() {
+        if request.read_slot.is_some() {
             // Making raw storage read
             let mut attempts = 0;
             let slot = request.read_slot.unwrap();
@@ -204,7 +214,7 @@ impl ViewRequestManager {
                 "Failed to make storage read call after {} attempts",
                 Self::MAX_RETRIES
             ))
-        } else {
+        } else if request.calldata.is_some() {
             let calldata = request.calldata.clone().unwrap();
             let builder = CallBuilder::<BoxTransport, P, ()>::new_raw(provider, calldata);
             let builder = builder.to(request.target);
@@ -231,6 +241,31 @@ impl ViewRequestManager {
 
             Err(eyre::eyre!(
                 "Failed to make RPC call after {} attempts",
+                Self::MAX_RETRIES
+            ))
+        } else {
+            // Get the code at target address
+            // Making raw storage read
+            let mut attempts = 0;
+
+            while attempts < Self::MAX_RETRIES {
+                match provider.get_code_at(request.target).await {
+                    Ok(result) => return Ok(result),
+                    Err(e) => {
+                        // If it's not a rate limit error, return the error immediately
+                        if !e.to_string().contains("429") && !e.to_string().contains("quota") {
+                            return Err(e.into());
+                        }
+
+                        info!("Rate limit error: {}", e);
+                        attempts += 1;
+                        tokio::time::sleep(Self::RETRY_DELAY).await;
+                    }
+                }
+            }
+
+            Err(eyre::eyre!(
+                "Failed to read target code after {} attempts",
                 Self::MAX_RETRIES
             ))
         }

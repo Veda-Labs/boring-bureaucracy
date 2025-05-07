@@ -16,7 +16,7 @@ pub struct TellerBlock {
 
 #[async_trait]
 impl Actionable for TellerBlock {
-    async fn to_actions(&self) -> Result<Vec<Box<dyn AdminAction>>> {
+    async fn to_actions(&self, vrm: &ViewRequestManager,) -> Result<Vec<Box<dyn AdminAction>>> {
         Ok(vec![])
     }
 

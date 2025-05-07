@@ -21,7 +21,7 @@ pub struct AssetsBlock {
 
 #[async_trait]
 impl Actionable for AssetsBlock {
-    async fn to_actions(&self) -> Result<Vec<Box<dyn AdminAction>>> {
+    async fn to_actions(&self, vrm: &ViewRequestManager,) -> Result<Vec<Box<dyn AdminAction>>> {
         // TODO make RPC calls checking state of Teller/Accountant
         Ok(vec![])
     }

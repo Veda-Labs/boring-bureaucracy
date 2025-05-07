@@ -54,7 +54,7 @@ pub struct GlobalBlock {
 
 #[async_trait]
 impl Actionable for GlobalBlock {
-    async fn to_actions(&self) -> Result<Vec<Box<dyn AdminAction>>> {
+    async fn to_actions(&self, vrm: &ViewRequestManager) -> Result<Vec<Box<dyn AdminAction>>> {
         Ok(vec![])
     }
 
@@ -64,7 +64,6 @@ impl Actionable for GlobalBlock {
         vrm: &ViewRequestManager,
     ) -> Result<()> {
         // Globals does not read anything from cache, only writes to it.
-
         if let Some(deployer) = &self.deployer {
             cache
                 .set("deployer", CacheValue::Address(*deployer), "global_block")
@@ -163,13 +162,16 @@ impl Actionable for GlobalBlock {
                 let calldata = Bytes::from(BoringVault::hookCall::new(()).abi_encode());
                 let result = vrm.request(*boring_vault, calldata).await;
                 if let Ok(res) = result {
-                    let data = BoringVault::hookCall::abi_decode_returns(&res, true)?;
-                    if data.hook != Address::ZERO {
-                        // Only update this if hook is set
-                        self.teller_address = Some(data.hook);
-                        cache
-                            .set("teller", CacheValue::Address(data.hook), "global_block")
-                            .await?;
+                    if res.len() > 0 {
+                        let data = BoringVault::hookCall::abi_decode_returns(&res, true)?;
+                        println!("Deserialized Data!");
+                        if data.hook != Address::ZERO {
+                            // Only update this if hook is set
+                            self.teller_address = Some(data.hook);
+                            cache
+                                .set("teller", CacheValue::Address(data.hook), "global_block")
+                                .await?;
+                        }
                     }
                 }
             }
@@ -258,21 +260,23 @@ impl Actionable for GlobalBlock {
                 let calldata = Bytes::from(Auth::ownerCall::new(()).abi_encode());
                 let result = vrm.request(*roles_authority, calldata).await;
                 if let Ok(res) = result {
-                    let data = Auth::ownerCall::abi_decode_returns(&res, true)?;
-                    let potential_multisig = data.owner;
-                    // Attempt to call nonce on potential multisig.
-                    let calldata = Bytes::from(GnosisSafe::nonceCall::new(()).abi_encode());
-                    let result = vrm.request(potential_multisig, calldata).await;
-                    if result.is_ok() {
-                        // Don't care what the nonce is but we know this is a multisig
-                        self.multisig_address = Some(potential_multisig);
-                        cache
-                            .set(
-                                "multisig",
-                                CacheValue::Address(potential_multisig),
-                                "global_block",
-                            )
-                            .await?;
+                    if res.len() > 0 {
+                        let data = Auth::ownerCall::abi_decode_returns(&res, true)?;
+                        let potential_multisig = data.owner;
+                        // Attempt to call nonce on potential multisig.
+                        let calldata = Bytes::from(GnosisSafe::nonceCall::new(()).abi_encode());
+                        let result = vrm.request(potential_multisig, calldata).await;
+                        if result.is_ok() {
+                            // Don't care what the nonce is but we know this is a multisig
+                            self.multisig_address = Some(potential_multisig);
+                            cache
+                                .set(
+                                    "multisig",
+                                    CacheValue::Address(potential_multisig),
+                                    "global_block",
+                                )
+                                .await?;
+                        }
                     }
                 }
             }
@@ -302,21 +306,23 @@ impl Actionable for GlobalBlock {
                 let calldata = Bytes::from(Auth::ownerCall::new(()).abi_encode());
                 let result = vrm.request(*roles_authority, calldata).await;
                 if let Ok(res) = result {
-                    let data = Auth::ownerCall::abi_decode_returns(&res, true)?;
-                    let potential_timelock = data.owner;
-                    // Attempt to call getMinDelay on potential timelock.
-                    let calldata = Bytes::from(Timelock::getMinDelayCall::new(()).abi_encode());
-                    let result = vrm.request(potential_timelock, calldata).await;
-                    if result.is_ok() {
-                        // Don't care what the min delay is but we know this is a timelock
-                        self.timelock_address = Some(potential_timelock);
-                        cache
-                            .set(
-                                "timelock",
-                                CacheValue::Address(potential_timelock),
-                                "global_block",
-                            )
-                            .await?;
+                    if res.len() > 0 {
+                        let data = Auth::ownerCall::abi_decode_returns(&res, true)?;
+                        let potential_timelock = data.owner;
+                        // Attempt to call getMinDelay on potential timelock.
+                        let calldata = Bytes::from(Timelock::getMinDelayCall::new(()).abi_encode());
+                        let result = vrm.request(potential_timelock, calldata).await;
+                        if result.is_ok() {
+                            // Don't care what the min delay is but we know this is a timelock
+                            self.timelock_address = Some(potential_timelock);
+                            cache
+                                .set(
+                                    "timelock",
+                                    CacheValue::Address(potential_timelock),
+                                    "global_block",
+                                )
+                                .await?;
+                        }
                     }
                 }
             }
@@ -402,7 +408,7 @@ mod tests {
                         "boring_vault": "0xf0bb20865277aBd641a307eCe5Ee04E79073416C",
                         "deployer": "0x5F2F11ad8656439d5C14d9B351f8b09cDaC2A02d",
                         "network_id": 1,
-                        "roles_authority": "0x1111111111111111111111111111111111111111",
+                        "roles_authority": "Test Roles Authority V0.0",
                         "teller": "0x2222222222222222222222222222222222222222",
                         "accountant": "0x3333333333333333333333333333333333333333",
                         "manager": "0x4444444444444444444444444444444444444444",
@@ -422,9 +428,13 @@ mod tests {
             cache.get("boring_vault", "test").await.unwrap(),
             CacheValue::Address(address!("0xf0bb20865277aBd641a307eCe5Ee04E79073416C"))
         );
+        let expected_roles_authority = derive_contract_address(
+            "Test Roles Authority V0.0",
+            address!("0x5F2F11ad8656439d5C14d9B351f8b09cDaC2A02d"),
+        );
         assert_eq!(
             cache.get("roles_authority", "test").await.unwrap(),
-            CacheValue::Address(address!("0x1111111111111111111111111111111111111111"))
+            CacheValue::Address(expected_roles_authority)
         );
         // ... verify other addresses
     }
