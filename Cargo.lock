@@ -1176,6 +1176,7 @@ dependencies = [
  "eyre",
  "hex",
  "into_trait",
+ "log",
  "reqwest",
  "serde",
  "serde_json",

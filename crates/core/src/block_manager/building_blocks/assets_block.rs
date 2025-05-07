@@ -1,6 +1,8 @@
 use super::building_block::Actionable;
 use crate::actions::admin_action::AdminAction;
 use crate::block_manager::block_manager::BlockManager;
+use crate::block_manager::shared_cache::SharedCache;
+use crate::utils::view_request_manager::ViewRequestManager;
 use alloy::primitives::Address;
 use async_trait::async_trait;
 use eyre::Result;
@@ -28,10 +30,11 @@ impl Actionable for AssetsBlock {
     // Not sure some how we need to write data like BoringVault address back to the bm so it can share it
     // This also could just return a Json::Value of important addresses, then
     // The bm could maybe store this json data and other blocks can read from it?
-    async fn resolve_and_contribute(&mut self, cache: &Value) -> Result<Value> {
-        // TODO make RPC calls to derive addresses/read addresses from chain if need be.
-        // Ask block manager for missing values, I think this should be
-        let data = json!({"boring_vault": Address::ZERO});
-        Ok(data)
+    async fn resolve_and_contribute(
+        &mut self,
+        cache: &SharedCache,
+        vrm: &ViewRequestManager,
+    ) -> Result<()> {
+        todo!()
     }
 }

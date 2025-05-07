@@ -14,5 +14,6 @@ sol! {
         function isSupported(address asset) external view returns(bool supported);
         function addAsset(address asset) external;
         function removeAsset(address asset) external;
+        function accountant() external view returns(address);
     }
 }

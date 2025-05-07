@@ -1,5 +1,7 @@
 pub mod accountant;
+pub mod auth;
 pub mod boring_queue;
+pub mod boring_vault;
 pub mod manager;
 pub mod multisend;
 pub mod multisig;

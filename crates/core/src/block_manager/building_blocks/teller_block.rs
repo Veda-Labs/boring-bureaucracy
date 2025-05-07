@@ -1,5 +1,7 @@
 use super::building_block::Actionable;
 use crate::actions::admin_action::AdminAction;
+use crate::block_manager::shared_cache::SharedCache;
+use crate::utils::view_request_manager::ViewRequestManager;
 use alloy::primitives::Address;
 use async_trait::async_trait;
 use eyre::Result;
@@ -20,9 +22,9 @@ impl Actionable for TellerBlock {
 
     async fn resolve_and_contribute(
         &mut self,
-        cache: &serde_json::Value,
-    ) -> Result<serde_json::Value> {
-        let data = json!({"boring_vault": Address::ZERO});
-        Ok(data)
+        cache: &SharedCache,
+        vrm: &ViewRequestManager,
+    ) -> Result<()> {
+        todo!()
     }
 }
