@@ -1,7 +1,9 @@
+use super::sender_type::SenderType;
+use crate::utils::view_request_manager::ViewRequestManager;
 use crate::{actions::action::Action, bindings::timelock::Timelock};
 use alloy::primitives::{Address, B256, Bytes, U256};
 use alloy::sol_types::SolCall;
-use eyre::Result;
+use eyre::{Result, eyre};
 use serde_json::{Value, json};
 
 use super::meta_action::MetaAction;
@@ -19,26 +21,95 @@ pub struct TimelockMetaAction {
     timelock: Address,
     delay: U256,
     actions: Vec<Box<dyn Action>>,
+    sender: SenderType,
 }
 
 impl TimelockMetaAction {
-    pub fn new(timelock: Address, delay: U256, actions: Vec<Box<dyn Action>>) -> Result<Self> {
-        // Make sures actions is not empty, and that all SenderType's are the same.
+    pub async fn new(
+        delay: Option<U256>,
+        actions: Vec<Box<dyn Action>>,
+        vrm: &ViewRequestManager,
+        timelock_admin: SenderType,
+    ) -> Result<Self> {
+        // Make sure actions is not empty, and that all SenderType's are the same.
         Self::validate(&actions)?;
-        let mode = Mode::Propose;
+
+        let timelock = match actions[0].sender() {
+            SenderType::Timelock(addr) => addr,
+            _ => {
+                return Err(eyre!("TimelockMetaAction: Wrong SenderType"));
+            }
+        };
+
+        // TODO verify that timelock_admin does have the proposer and executor role
+
+        // Handle delay.
+        let calldata = Bytes::from(Timelock::getMinDelayCall::new(()).abi_encode());
+        let result = vrm.request(timelock, calldata).await?;
+        let min_delay = Timelock::getMinDelayCall::abi_decode_returns(&result, true)?.delay;
+        let delay = if let Some(delay) = delay {
+            if delay < min_delay {
+                return Err(eyre!(
+                    "TimelockMetaAction: Provided delay does not meet minimum"
+                ));
+            }
+            delay
+        } else {
+            min_delay
+        };
+
+        let targets = actions
+            .iter()
+            .map(|action| action.target())
+            .collect::<Vec<_>>();
+        let values = actions
+            .iter()
+            .map(|action| action.value())
+            .collect::<Vec<_>>();
+        let data = actions
+            .iter()
+            .map(|action| action.data())
+            .collect::<Vec<_>>();
+
+        // Get operation hash.
+        let calldata = Bytes::from(
+            Timelock::hashOperationBatchCall::new((
+                targets,
+                values,
+                data,
+                DEFAULT_PREDECESSOR,
+                DEFAULT_SALT,
+            ))
+            .abi_encode(),
+        );
+        let result = vrm.request(timelock, calldata).await?;
+        let id = Timelock::hashOperationBatchCall::abi_decode_returns(&result, true)?.id;
+
+        // Check if operation is ready.
+        let calldata = Bytes::from(Timelock::isOperationReadyCall::new((id,)).abi_encode());
+        let result = vrm.request(timelock, calldata).await?;
+        let is_ready = Timelock::isOperationReadyCall::abi_decode_returns(&result, true)?._0;
+        let mode = if is_ready {
+            Mode::Execute
+        } else {
+            // Check if it needs to be queued.
+            let calldata = Bytes::from(Timelock::isOperationPendingCall::new((id,)).abi_encode());
+            let result = vrm.request(timelock, calldata).await?;
+            let is_pending =
+                Timelock::isOperationPendingCall::abi_decode_returns(&result, true)?._0;
+            if is_pending {
+                return Err(eyre!("TimelockMetaAction: Operation is still pending"));
+            } else {
+                Mode::Propose
+            }
+        };
         Ok(Self {
             mode,
             timelock,
             delay,
             actions,
+            sender: timelock_admin,
         })
-    }
-
-    pub fn toggle_mode(&mut self) {
-        match self.mode {
-            Mode::Propose => self.mode = Mode::Execute,
-            Mode::Execute => self.mode = Mode::Propose,
-        }
     }
 }
 
@@ -86,6 +157,10 @@ impl Action for TimelockMetaAction {
         };
 
         Bytes::from(tx_data)
+    }
+
+    fn sender(&self) -> SenderType {
+        self.sender
     }
 
     fn describe(&self) -> Value {

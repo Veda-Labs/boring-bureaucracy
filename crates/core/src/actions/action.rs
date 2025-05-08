@@ -17,8 +17,8 @@ pub trait Action: Send + Sync {
     fn sender(&self) -> SenderType {
         SenderType::EOA(Address::ZERO)
     }
-    fn describe(&self) -> Value;
     fn operation(&self) -> u8 {
         0
     }
+    fn describe(&self) -> Value;
 }

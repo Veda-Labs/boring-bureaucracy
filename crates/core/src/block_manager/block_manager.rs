@@ -7,11 +7,13 @@
 use super::building_blocks::{building_block::BuildingBlock, building_blocks::BuildingBlocks};
 use super::shared_cache::CacheValue;
 use crate::actions::action::Action;
-use crate::actions::multisig_meta_action::MultisigMetaAction;
 use crate::actions::sender_type::SenderType;
+use crate::actions::{
+    multisend_meta_action::MultisendMetaAction, multisig_meta_action::MultisigMetaAction,
+    timelock_meta_action::TimelockMetaAction,
+};
 use crate::block_manager::shared_cache::{SharedCache, SharedCacheRef};
 use crate::utils::view_request_manager::{ViewRequestManager, ViewRequestManagerRef};
-use alloy::primitives::Address;
 use alloy::providers::Provider;
 use alloy::providers::ProviderBuilder;
 
@@ -96,6 +98,7 @@ impl BlockManager {
         Ok(())
     }
 
+    // TODO need to check the SenderType logic as I was getting confused between the actions sender type, and then the sender type expected
     pub async fn assemble_and_aggregate(&mut self) -> Result<Vec<Box<dyn Action>>> {
         let mut actions = Vec::new();
 
@@ -127,6 +130,7 @@ impl BlockManager {
             let mut current_chunk = Vec::new();
             let mut current_sender = actions[0].sender();
             for action in actions.into_iter() {
+                // TODO Actually this seems borked. if the sender type completely changes, then we are using the CURRENT SENDER not the one corresponding to the chunk actions!
                 match action.sender() {
                     SenderType::EOA(addr) => {
                         if addr != executor {
@@ -138,42 +142,71 @@ impl BlockManager {
                     SenderType::Signer(multisig) => {
                         // Convert into Approve Hash or Exec Transaction action, and push onto meta_actions
                         let meta_action =
-                            MultisigMetaAction::new(multisig, executor, action, None, &self.vrm)
-                                .await?;
+                            MultisigMetaAction::new(executor, action, None, &self.vrm).await?;
                         meta_actions.push(Box::new(meta_action));
                         current_sender = SenderType::Signer(multisig);
                     }
                     SenderType::Multisig(multisig) => {
-                        // Need to append actions to current_chunk, until it changes, once it changes, we take the current chunk, and make a new meta_action, emptying out the current chunk.
                         if current_sender != SenderType::Multisig(multisig) {
-                            // TODO need to create the multisend meta action
                             // Chunk transition.
                             if !current_chunk.is_empty() {
                                 // Batch current chunk into a Multisend meta action
-                                // reset current chunk to empty
-                                // push current action into current chunk
-                            } // else nothing to do
-                        } else {
-                            // Add action to current chunk.
-                            current_chunk.push(action);
+                                let multisend = match self.cache.get_immediate("multisend").await? {
+                                    CacheValue::Address(addr) => addr,
+                                    _ => {
+                                        return Err(eyre!(
+                                            "BlockManager: multisend is not an address in the cache"
+                                        ));
+                                    }
+                                };
+                                let meta_action = MultisendMetaAction::new(
+                                    multisend,
+                                    std::mem::take(&mut current_chunk),
+                                )?;
+                                meta_actions.push(Box::new(meta_action));
+                                current_sender = SenderType::Multisig(multisig);
+                            }
                         }
+                        // Add action to current chunk.
+                        current_chunk.push(action);
                     }
                     SenderType::Timelock(timelock) => {
                         if current_sender != SenderType::Timelock(timelock) {
                             // Chunk transition
                             if !current_chunk.is_empty() {
                                 // Batch current chunk into a Timelock meta action
+                                let timelock_admin = match self
+                                    .cache
+                                    .get_immediate("timelock_admin")
+                                    .await?
+                                {
+                                    CacheValue::Address(addr) => addr,
+                                    _ => {
+                                        return Err(eyre!(
+                                            "BlockManager: timelock_admin is not an address in the cache"
+                                        ));
+                                    }
+                                };
+                                // TODO delay could be a value optionally read from the cache.
+                                let meta_action = TimelockMetaAction::new(
+                                    None,
+                                    std::mem::take(&mut current_chunk),
+                                    &self.vrm,
+                                    SenderType::Multisig(timelock_admin),
+                                )
+                                .await?;
+                                meta_actions.push(Box::new(meta_action));
+                                current_sender = SenderType::Timelock(timelock);
                                 // reset current chunk to empty
                             }
-
-                            // Add action to current chunk.
-                            current_chunk.push(action);
                         }
+                        // Add action to current chunk.
+                        current_chunk.push(action);
                     }
                 }
             }
-        }
 
-        Ok(actions)
+            Ok(meta_actions)
+        }
     }
 }

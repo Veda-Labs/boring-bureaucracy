@@ -1,8 +1,5 @@
-use super::sender_type::SenderType;
 use crate::actions::action::Action;
-use alloy::primitives::{Address, Bytes, U256};
 use eyre::{Result, eyre};
-use serde_json::Value;
 
 pub trait MetaAction: Send + Sync {
     fn validate(actions: &Vec<Box<dyn Action>>) -> Result<()> {

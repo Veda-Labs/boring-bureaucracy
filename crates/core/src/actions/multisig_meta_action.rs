@@ -30,16 +30,17 @@ pub struct MultisigMetaAction {
 
 impl MultisigMetaAction {
     pub async fn new(
-        multisig: Address,
         signer: Address,
         action: Box<dyn Action>,
         action_nonce: Option<U256>,
         vrm: &ViewRequestManager,
     ) -> Result<Self> {
-        // Make sure actions is not empty, and that all SenderType's are the same.
-        if action.sender() != SenderType::Signer(multisig) {
-            return Err(eyre!("MultisigMetaAction: Wrong SenderType"));
-        }
+        let multisig = match action.sender() {
+            SenderType::Multisig(addr) => addr,
+            _ => {
+                return Err(eyre!("MultisigMetaAction: Wrong SenderType"));
+            }
+        };
 
         // Check that the signer is an owner.
         let calldata = Bytes::from(GnosisSafe::getOwnersCall::new(()).abi_encode());
@@ -187,6 +188,10 @@ impl Action for MultisigMetaAction {
         };
 
         Bytes::from(tx_data)
+    }
+
+    fn priority(&self) -> u32 {
+        1
     }
 
     fn sender(&self) -> SenderType {

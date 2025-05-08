@@ -49,6 +49,8 @@ pub struct GlobalBlock {
     timelock_address: Option<Address>,
     #[serde(default)]
     executor: Option<Address>,
+    #[serde(default)]
+    timelock_admin: Option<Address>,
     // #[serde(skip_deserializing, default)]
     // pub no_read: String,
     // ...other fields
@@ -329,6 +331,16 @@ impl BuildingBlock for GlobalBlock {
         if let Some(executor) = self.executor {
             cache
                 .set("executor", CacheValue::Address(executor), "global_block")
+                .await?;
+        }
+
+        if let Some(timelock_admin) = self.timelock_admin {
+            cache
+                .set(
+                    "timelock_admin",
+                    CacheValue::Address(timelock_admin),
+                    "global_block",
+                )
                 .await?;
         }
 

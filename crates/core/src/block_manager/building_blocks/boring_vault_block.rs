@@ -6,7 +6,7 @@ use crate::block_manager::shared_cache::{CacheValue, SharedCache};
 use crate::bytecode::BORING_VAULT_BYTECODE;
 use crate::utils::address_or_contract_name::{AddressOrContractName, derive_contract_address};
 use crate::utils::view_request_manager::ViewRequestManager;
-use alloy::primitives::{Address, Bytes, U256, bytes};
+use alloy::primitives::{Address, Bytes, U256};
 use alloy::sol_types::{SolCall, SolConstructor};
 use async_trait::async_trait;
 use eyre::{Result, eyre};

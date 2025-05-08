@@ -3,6 +3,7 @@ pub mod add_asset_action;
 pub mod admin_action;
 pub mod deploy_contract_action;
 pub mod meta_action;
+pub mod multisend_meta_action;
 pub mod multisend_utils;
 pub mod multisig_meta_action;
 pub mod remove_asset_action;
