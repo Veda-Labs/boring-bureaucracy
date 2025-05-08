@@ -2,9 +2,9 @@ use alloy::primitives::{Address, Bytes, U256};
 use alloy::sol_types::SolCall;
 use serde_json::{Value, json};
 
-use crate::{actions::admin_action::AdminAction, bindings::deployer::Deployer};
+use crate::{actions::action::Action, bindings::deployer::Deployer};
 
-use super::admin_action::CallerType;
+use super::sender_type::SenderType;
 
 pub struct DeployContract {
     deployer: Address,
@@ -13,7 +13,7 @@ pub struct DeployContract {
     constructor_args: Bytes,
     value: U256,
     priority: u32,
-    caller: CallerType,
+    sender: SenderType,
 }
 
 impl DeployContract {
@@ -24,7 +24,7 @@ impl DeployContract {
         constructor_args: Bytes,
         value: U256,
         priority: u32,
-        caller: CallerType,
+        sender: SenderType,
     ) -> Self {
         Self {
             deployer,
@@ -33,12 +33,12 @@ impl DeployContract {
             constructor_args,
             value,
             priority,
-            caller,
+            sender,
         }
     }
 }
 
-impl AdminAction for DeployContract {
+impl Action for DeployContract {
     fn target(&self) -> Address {
         self.deployer
     }
@@ -53,12 +53,12 @@ impl AdminAction for DeployContract {
         Bytes::from(bytes_data)
     }
 
-    fn get_priority(&self) -> u32 {
+    fn priority(&self) -> u32 {
         self.priority
     }
 
-    fn get_caller(&self) -> CallerType {
-        self.caller
+    fn sender(&self) -> SenderType {
+        self.sender
     }
     fn describe(&self) -> Value {
         json!({

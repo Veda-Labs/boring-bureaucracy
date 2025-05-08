@@ -1,5 +1,5 @@
-use super::building_block::Actionable;
-use crate::actions::admin_action::AdminAction;
+use super::building_block::BuildingBlock;
+use crate::actions::action::Action;
 use crate::block_manager::shared_cache::SharedCache;
 use crate::utils::view_request_manager::ViewRequestManager;
 use alloy::primitives::Address;
@@ -14,12 +14,12 @@ pub struct TellerBlock {
 }
 
 #[async_trait]
-impl Actionable for TellerBlock {
-    async fn to_actions(&self, _vrm: &ViewRequestManager) -> Result<Vec<Box<dyn AdminAction>>> {
+impl BuildingBlock for TellerBlock {
+    async fn assemble(&self, _vrm: &ViewRequestManager) -> Result<Vec<Box<dyn Action>>> {
         Ok(vec![])
     }
 
-    async fn resolve_and_contribute(
+    async fn resolve_state(
         &mut self,
         _cache: &SharedCache,
         _vrm: &ViewRequestManager,

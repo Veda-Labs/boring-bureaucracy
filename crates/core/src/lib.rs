@@ -1,6 +1,7 @@
 pub mod actions;
 pub mod bindings;
 pub mod block_manager;
+pub mod bytecode;
 pub mod processors;
 pub mod types;
 pub mod utils;

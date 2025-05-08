@@ -1,5 +1,5 @@
-use super::building_block::Actionable;
-use crate::actions::admin_action::AdminAction;
+use super::building_block::BuildingBlock;
+use crate::actions::action::Action;
 use crate::bindings::{
     auth::Auth, boring_vault::BoringVault, multisig::GnosisSafe,
     teller::TellerWithMultiAssetSupport, timelock::Timelock,
@@ -55,16 +55,12 @@ pub struct GlobalBlock {
 }
 
 #[async_trait]
-impl Actionable for GlobalBlock {
-    async fn to_actions(&self, _vrm: &ViewRequestManager) -> Result<Vec<Box<dyn AdminAction>>> {
+impl BuildingBlock for GlobalBlock {
+    async fn assemble(&self, _vrm: &ViewRequestManager) -> Result<Vec<Box<dyn Action>>> {
         Ok(vec![])
     }
 
-    async fn resolve_and_contribute(
-        &mut self,
-        cache: &SharedCache,
-        vrm: &ViewRequestManager,
-    ) -> Result<()> {
+    async fn resolve_state(&mut self, cache: &SharedCache, vrm: &ViewRequestManager) -> Result<()> {
         // Globals does not read anything from cache, only writes to it.
         if let Some(deployer) = &self.deployer {
             cache
