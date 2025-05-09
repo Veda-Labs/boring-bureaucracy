@@ -98,7 +98,7 @@ impl BlockManager {
         Ok(())
     }
 
-    // TODO need to check the SenderType logic as I was getting confused between the actions sender type, and then the sender type expected
+    // TODO maybe use log in here to print debug and info, etc
     pub async fn assemble_and_aggregate(&mut self) -> Result<Vec<Box<dyn Action>>> {
         let mut actions = Vec::new();
 
@@ -126,103 +126,127 @@ impl BlockManager {
                     ));
                 }
             };
-            // TODO also this needs to keep iterating until we get just to EOA senders.
+
+            // Bound while loop to safe maximum.
+            // MAX_ITERATIONS flow:
+            //  Timelock + Multisend + Signer(which then goes to EOA) = 3.
+            const MAX_ITERATIONS: u8 = 3;
             let mut meta_actions = Vec::new();
             let mut current_chunk = Vec::new();
+            let mut non_eoa_action_senders = false;
+            let mut iterations = 0;
 
-            let mut action_iter = actions.into_iter().peekable();
-            while let Some(action) = action_iter.next() {
-                let current_sender = action.sender();
-                match current_sender {
-                    SenderType::EOA(addr) => {
-                        if addr != executor {
-                            return Err(eyre!("BlockManager: Wrong EOA"));
+            while !non_eoa_action_senders {
+                if iterations == MAX_ITERATIONS {
+                    return Err(eyre!(
+                        "BlockManager: Failed to aggregate actions in {}",
+                        MAX_ITERATIONS
+                    ));
+                }
+                let mut action_iter = actions.into_iter().peekable();
+                while let Some(action) = action_iter.next() {
+                    let current_sender = action.sender();
+                    match current_sender {
+                        SenderType::EOA(addr) => {
+                            if addr != executor {
+                                return Err(eyre!("BlockManager: Wrong EOA"));
+                            }
+                            meta_actions.push(action);
                         }
-                        meta_actions.push(action);
-                    }
-                    SenderType::Signer(multisig) => {
-                        // Convert into Approve Hash or Exec Transaction action, and push onto meta_actions
-                        let meta_action =
-                            MultisigMetaAction::new(multisig, executor, action, None, &self.vrm)
-                                .await?;
-                        meta_actions.push(Box::new(meta_action));
-                    }
-                    _ => {
-                        // Get next action as following arms can bundle multiple actions together.
-                        let next_action = action_iter.peek();
+                        SenderType::Signer(multisig) => {
+                            // Convert into Approve Hash or Exec Transaction action, and push onto meta_actions
+                            let meta_action = MultisigMetaAction::new(
+                                multisig, executor, action, None, &self.vrm,
+                            )
+                            .await?;
+                            meta_actions.push(Box::new(meta_action));
+                        }
+                        _ => {
+                            // We reached this match arm so the final meta_actions will have NON EOA senders in it.
+                            non_eoa_action_senders = true;
 
-                        // Add action to current chunk.
-                        current_chunk.push(action);
+                            // Get next action as following arms can bundle multiple actions together.
+                            let next_action = action_iter.peek();
 
-                        let chunk_transition = match next_action {
-                            Some(a) => {
-                                // If next_sender does not equal current sender, then we are at a chunk_transition
-                                let next_sender = a.sender();
-                                next_sender != current_sender
-                            }
-                            None => {
-                                // Always return true as we are at the end of the actions
-                                true
-                            }
-                        };
-                        match current_sender {
-                            SenderType::Multisig(multisig) => {
-                                if chunk_transition {
-                                    // Batch current chunk into a Multisend meta action
-                                    let multisend = match self
-                                        .cache
-                                        .get_immediate("multisend")
-                                        .await?
-                                    {
-                                        CacheValue::Address(addr) => addr,
-                                        _ => {
-                                            return Err(eyre!(
-                                                "BlockManager: multisend is not an address in the cache"
-                                            ));
-                                        }
-                                    };
-                                    let meta_action = MultisendMetaAction::new(
-                                        multisig,
-                                        multisend,
-                                        std::mem::take(&mut current_chunk),
-                                    )?;
-                                    meta_actions.push(Box::new(meta_action));
+                            // Add action to current chunk.
+                            current_chunk.push(action);
+
+                            let chunk_transition = match next_action {
+                                Some(a) => {
+                                    // If next_sender does not equal current sender, then we are at a chunk_transition
+                                    let next_sender = a.sender();
+                                    next_sender != current_sender
                                 }
-                            }
-                            SenderType::Timelock(timelock) => {
-                                if chunk_transition {
-                                    // Batch current chunk into a Timelock meta action
-                                    let timelock_admin = match self
-                                        .cache
-                                        .get_immediate("timelock_admin")
-                                        .await?
-                                    {
-                                        CacheValue::Address(addr) => addr,
-                                        _ => {
-                                            return Err(eyre!(
-                                                "BlockManager: timelock_admin is not an address in the cache"
-                                            ));
-                                        }
-                                    };
-                                    // TODO delay could be a value optionally read from the cache.
-                                    let meta_action = TimelockMetaAction::new(
-                                        timelock,
-                                        None,
-                                        std::mem::take(&mut current_chunk),
-                                        &self.vrm,
-                                        SenderType::Multisig(timelock_admin),
-                                    )
-                                    .await?;
-                                    meta_actions.push(Box::new(meta_action));
+                                None => {
+                                    // Always return true as we are at the end of the actions
+                                    true
                                 }
+                            };
+                            match current_sender {
+                                SenderType::Multisig(multisig) => {
+                                    if chunk_transition {
+                                        // Batch current chunk into a Multisend meta action
+                                        let multisend = match self
+                                            .cache
+                                            .get_immediate("multisend")
+                                            .await?
+                                        {
+                                            CacheValue::Address(addr) => addr,
+                                            _ => {
+                                                return Err(eyre!(
+                                                    "BlockManager: multisend is not an address in the cache"
+                                                ));
+                                            }
+                                        };
+                                        let meta_action = MultisendMetaAction::new(
+                                            multisig,
+                                            multisend,
+                                            std::mem::take(&mut current_chunk),
+                                        )?;
+                                        meta_actions.push(Box::new(meta_action));
+                                    }
+                                }
+                                SenderType::Timelock(timelock) => {
+                                    if chunk_transition {
+                                        // Batch current chunk into a Timelock meta action
+                                        let timelock_admin = match self
+                                            .cache
+                                            .get_immediate("timelock_admin")
+                                            .await?
+                                        {
+                                            CacheValue::Address(addr) => addr,
+                                            _ => {
+                                                return Err(eyre!(
+                                                    "BlockManager: timelock_admin is not an address in the cache"
+                                                ));
+                                            }
+                                        };
+                                        // TODO delay could be a value optionally read from the cache.
+                                        // TODO timelock_admin can technically have sender type EOA too, so maybe write that into the cache too?
+                                        // like the type of timelock_admin?
+                                        let meta_action = TimelockMetaAction::new(
+                                            timelock,
+                                            None,
+                                            std::mem::take(&mut current_chunk),
+                                            &self.vrm,
+                                            SenderType::Multisig(timelock_admin),
+                                        )
+                                        .await?;
+                                        meta_actions.push(Box::new(meta_action));
+                                    }
+                                }
+                                _ => unreachable!(), // This should never happen with match arm layout
                             }
-                            _ => unreachable!(), // This should never happen with match arm layout
                         }
                     }
                 }
+                // Copy meta_actions into actions.
+                actions = std::mem::take(&mut meta_actions);
+                // Increment iterations.
+                iterations += 1;
             }
 
-            Ok(meta_actions)
+            Ok(actions)
         }
     }
 }
