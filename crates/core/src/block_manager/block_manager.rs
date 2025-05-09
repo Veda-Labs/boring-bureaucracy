@@ -126,6 +126,9 @@ impl BlockManager {
                     ));
                 }
             };
+            // let mut action_iter = actions.into_iter().peekable(); // Lets you peek at the next element of the iterator without consuming it
+            // let next_sender = action_iter.peek().map(|a| a.sender());
+            // TODO also this needs to keep iterating until we get just to EOA senders.
             let mut meta_actions = Vec::new();
             let mut current_chunk = Vec::new();
             let mut current_sender = actions[0].sender();
