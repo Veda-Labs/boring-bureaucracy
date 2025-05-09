@@ -12,13 +12,14 @@ pub struct MultisendMetaAction {
     signer: SenderType,
 }
 
+// TODO if action length 1, just make direct call, so use action.target(), etc.
 impl MultisendMetaAction {
     pub fn new(multisend: Address, actions: Vec<Box<dyn Action>>) -> Result<Self> {
         Self::validate(&actions)?;
         let multisig = match actions[0].sender() {
             SenderType::Multisig(addr) => addr,
             _ => {
-                return Err(eyre!("MultisigMetaAction: Wrong SenderType"));
+                return Err(eyre!("MultisendMetaAction: Wrong SenderType"));
             }
         };
         Ok(Self {

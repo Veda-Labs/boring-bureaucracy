@@ -24,6 +24,7 @@ pub struct TimelockMetaAction {
     sender: SenderType,
 }
 
+// TODO if action length 1, can use non batch functions
 impl TimelockMetaAction {
     pub async fn new(
         delay: Option<U256>,
@@ -42,6 +43,17 @@ impl TimelockMetaAction {
         };
 
         // TODO verify that timelock_admin does have the proposer and executor role
+        // Verify timelock_admin.
+        // Should be of type EOA or multisig.
+        match timelock_admin {
+            SenderType::EOA(_) => {}
+            SenderType::Multisig(_) => {}
+            _ => {
+                return Err(eyre!(
+                    "TimelockMetaAction: Timelock admin must be EOA or Multisig"
+                ));
+            }
+        }
 
         // Handle delay.
         let calldata = Bytes::from(Timelock::getMinDelayCall::new(()).abi_encode());

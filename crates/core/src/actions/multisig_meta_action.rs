@@ -36,7 +36,7 @@ impl MultisigMetaAction {
         vrm: &ViewRequestManager,
     ) -> Result<Self> {
         let multisig = match action.sender() {
-            SenderType::Multisig(addr) => addr,
+            SenderType::Signer(addr) => addr,
             _ => {
                 return Err(eyre!("MultisigMetaAction: Wrong SenderType"));
             }
