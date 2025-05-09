@@ -27,6 +27,7 @@ pub struct TimelockMetaAction {
 // TODO if action length 1, can use non batch functions
 impl TimelockMetaAction {
     pub async fn new(
+        timelock: Address,
         delay: Option<U256>,
         actions: Vec<Box<dyn Action>>,
         vrm: &ViewRequestManager,
@@ -34,13 +35,13 @@ impl TimelockMetaAction {
     ) -> Result<Self> {
         // Make sure actions is not empty, and that all SenderType's are the same.
         Self::validate(&actions)?;
-
-        let timelock = match actions[0].sender() {
-            SenderType::Timelock(addr) => addr,
-            _ => {
-                return Err(eyre!("TimelockMetaAction: Wrong SenderType"));
-            }
-        };
+        // We know the actions sender types are Timelock with the appropriate multisig, from the match arm in block_manager
+        // let timelock = match actions[0].sender() {
+        //     SenderType::Timelock(addr) => addr,
+        //     _ => {
+        //         return Err(eyre!("TimelockMetaAction: Wrong SenderType"));
+        //     }
+        // };
 
         // TODO verify that timelock_admin does have the proposer and executor role
         // Verify timelock_admin.

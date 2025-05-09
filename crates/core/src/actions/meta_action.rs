@@ -12,7 +12,7 @@ pub trait MetaAction: Send + Sync {
                 .all(|action| action.sender() == expected_sender)
             {
                 return Err(eyre!(
-                    "MetaAction: All actions in MetaAction must have the same sender type"
+                    "MetaAction: All actions in MetaAction must have the same sender type and address"
                 ));
             }
         }

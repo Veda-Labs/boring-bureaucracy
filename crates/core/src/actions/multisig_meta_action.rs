@@ -30,17 +30,19 @@ pub struct MultisigMetaAction {
 
 impl MultisigMetaAction {
     pub async fn new(
+        multisig: Address,
         signer: Address,
         action: Box<dyn Action>,
         action_nonce: Option<U256>,
         vrm: &ViewRequestManager,
     ) -> Result<Self> {
-        let multisig = match action.sender() {
-            SenderType::Signer(addr) => addr,
-            _ => {
-                return Err(eyre!("MultisigMetaAction: Wrong SenderType"));
-            }
-        };
+        // We know the action sender type is Signer with the appropriate multisig, from the match arm in block_manager
+        // let multisig = match action.sender() {
+        //     SenderType::Signer(addr) => addr,
+        //     _ => {
+        //         return Err(eyre!("MultisigMetaAction: Wrong SenderType"));
+        //     }
+        // };
 
         // Check that the signer is an owner.
         let calldata = Bytes::from(GnosisSafe::getOwnersCall::new(()).abi_encode());

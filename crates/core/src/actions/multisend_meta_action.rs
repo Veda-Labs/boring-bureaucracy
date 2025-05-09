@@ -3,7 +3,7 @@ use super::sender_type::SenderType;
 use crate::{actions::action::Action, bindings::multisend::MutliSendCallOnly};
 use alloy::primitives::{Address, Bytes, U256};
 use alloy::sol_types::SolCall;
-use eyre::{Result, eyre};
+use eyre::Result;
 use serde_json::{Value, json};
 
 pub struct MultisendMetaAction {
@@ -14,14 +14,20 @@ pub struct MultisendMetaAction {
 
 // TODO if action length 1, just make direct call, so use action.target(), etc.
 impl MultisendMetaAction {
-    pub fn new(multisend: Address, actions: Vec<Box<dyn Action>>) -> Result<Self> {
+    pub fn new(
+        multisig: Address,
+        multisend: Address,
+        actions: Vec<Box<dyn Action>>,
+    ) -> Result<Self> {
+        // Validate all actions have the same sender type and address
         Self::validate(&actions)?;
-        let multisig = match actions[0].sender() {
-            SenderType::Multisig(addr) => addr,
-            _ => {
-                return Err(eyre!("MultisendMetaAction: Wrong SenderType"));
-            }
-        };
+        // We know the action sender type is multisig with the appropriate multisig, from the match arm in block_manager
+        // let multisig = match actions[0].sender() {
+        //     SenderType::Multisig(addr) => addr,
+        //     _ => {
+        //         return Err(eyre!("MultisendMetaAction: Wrong SenderType"));
+        //     }
+        // };
         Ok(Self {
             multisend,
             actions,
