@@ -82,6 +82,37 @@ impl SharedCache {
         Err(eyre!("Cache value not found: {}", key))
     }
 
+    pub async fn try_get(&self, key: &str) -> Option<CacheValue> {
+        let storage = self.storage.read().await;
+
+        if let Some(entry) = storage.get(key) {
+            if let Some(value) = &entry.value {
+                return Some(value.clone());
+            }
+        }
+
+        None
+    }
+
+    pub async fn try_get_address(&self, key: &str) -> Option<Address> {
+        let storage = self.storage.read().await;
+
+        if let Some(entry) = storage.get(key) {
+            if let Some(value) = &entry.value {
+                match value {
+                    CacheValue::Address(addr) => {
+                        return Some(*addr);
+                    }
+                    _ => {
+                        return None;
+                    }
+                }
+            }
+        }
+
+        None
+    }
+
     pub async fn set(&self, key: &str, value: CacheValue, tag: &str) -> Result<()> {
         let mut storage = self.storage.write().await;
 

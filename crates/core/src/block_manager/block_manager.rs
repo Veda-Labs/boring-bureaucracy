@@ -5,7 +5,6 @@
 // save addresses in the block manager
 
 use super::building_blocks::{building_block::BuildingBlock, building_blocks::BuildingBlocks};
-use super::shared_cache::CacheValue;
 use crate::actions::action::Action;
 use crate::actions::sender_type::SenderType;
 use crate::actions::{
@@ -118,14 +117,11 @@ impl BlockManager {
         if actions.is_empty() {
             return Err(eyre!("BlockManager: actions is empty"));
         } else {
-            let executor = match self.cache.get_immediate("executor").await? {
-                CacheValue::Address(addr) => addr,
-                _ => {
-                    return Err(eyre!(
-                        "BlockManager: executor is not an address in the cache"
-                    ));
-                }
-            };
+            let executor = self
+                .cache
+                .try_get_address("executor")
+                .await
+                .expect("BlockManager: Expected executor to be defined and to be an address");
 
             // Bound while loop to safe maximum.
             // MAX_ITERATIONS flow:
@@ -186,18 +182,8 @@ impl BlockManager {
                                 SenderType::Multisig(multisig) => {
                                     if chunk_transition {
                                         // Batch current chunk into a Multisend meta action
-                                        let multisend = match self
-                                            .cache
-                                            .get_immediate("multisend")
-                                            .await?
-                                        {
-                                            CacheValue::Address(addr) => addr,
-                                            _ => {
-                                                return Err(eyre!(
-                                                    "BlockManager: multisend is not an address in the cache"
-                                                ));
-                                            }
-                                        };
+                                        let multisend =
+                                            self.cache.try_get_address("multisend").await;
                                         let meta_action = MultisendMetaAction::new(
                                             multisig,
                                             multisend,
@@ -209,18 +195,8 @@ impl BlockManager {
                                 SenderType::Timelock(timelock) => {
                                     if chunk_transition {
                                         // Batch current chunk into a Timelock meta action
-                                        let timelock_admin = match self
-                                            .cache
-                                            .get_immediate("timelock_admin")
-                                            .await?
-                                        {
-                                            CacheValue::Address(addr) => addr,
-                                            _ => {
-                                                return Err(eyre!(
-                                                    "BlockManager: timelock_admin is not an address in the cache"
-                                                ));
-                                            }
-                                        };
+                                        let timelock_admin = self.cache.try_get_address("timelock_admin").await.expect("BlockManager: Expected timelock_admin to be defined and an address");
+
                                         // TODO delay could be a value optionally read from the cache.
                                         // TODO timelock_admin can technically have sender type EOA too, so maybe write that into the cache too?
                                         // like the type of timelock_admin?

@@ -3,11 +3,11 @@ use super::sender_type::SenderType;
 use crate::{actions::action::Action, bindings::multisend::MutliSendCallOnly};
 use alloy::primitives::{Address, Bytes, U256};
 use alloy::sol_types::SolCall;
-use eyre::Result;
+use eyre::{Result, eyre};
 use serde_json::{Value, json};
 
 pub struct MultisendMetaAction {
-    multisend: Address,
+    multisend: Option<Address>,
     actions: Vec<Box<dyn Action>>,
     signer: SenderType,
 }
@@ -16,7 +16,7 @@ pub struct MultisendMetaAction {
 impl MultisendMetaAction {
     pub fn new(
         multisig: Address,
-        multisend: Address,
+        multisend: Option<Address>,
         actions: Vec<Box<dyn Action>>,
     ) -> Result<Self> {
         // Validate all actions have the same sender type and address
@@ -28,6 +28,15 @@ impl MultisendMetaAction {
         //         return Err(eyre!("MultisendMetaAction: Wrong SenderType"));
         //     }
         // };
+        if actions.len() > 1 {
+            // Use multisend to make multiple calls.
+            if multisend.is_none() {
+                return Err(eyre!(
+                    "MultisendMetaAction: multisend is not defined and action length is {}",
+                    actions.len()
+                ));
+            }
+        }
         Ok(Self {
             multisend,
             actions,
@@ -40,34 +49,42 @@ impl MetaAction for MultisendMetaAction {}
 
 impl Action for MultisendMetaAction {
     fn target(&self) -> Address {
-        self.multisend
+        if self.actions.len() > 1 {
+            self.multisend.unwrap()
+        } else {
+            self.actions[0].target()
+        }
     }
 
     fn data(&self) -> Bytes {
-        let mut encoded_transactions = Vec::new();
-        for action in &self.actions {
-            // operation (0 for Call) - 1 byte
-            encoded_transactions.push(0u8);
+        if self.actions.len() > 1 {
+            let mut encoded_transactions = Vec::new();
+            for action in &self.actions {
+                // operation (0 for Call) - 1 byte
+                encoded_transactions.push(0u8);
 
-            // to address - 20 bytes
-            encoded_transactions.extend_from_slice(&action.target().as_slice());
+                // to address - 20 bytes
+                encoded_transactions.extend_from_slice(&action.target().as_slice());
 
-            // value - 32 bytes
-            encoded_transactions.extend_from_slice(&action.value().to_be_bytes::<32>());
+                // value - 32 bytes
+                encoded_transactions.extend_from_slice(&action.value().to_be_bytes::<32>());
 
-            // data length - 32 bytes
-            let data_len = U256::from(action.data().len());
-            encoded_transactions.extend_from_slice(&data_len.to_be_bytes::<32>());
+                // data length - 32 bytes
+                let data_len = U256::from(action.data().len());
+                encoded_transactions.extend_from_slice(&data_len.to_be_bytes::<32>());
 
-            // data - dynamic length
-            encoded_transactions.extend_from_slice(&action.data());
+                // data - dynamic length
+                encoded_transactions.extend_from_slice(&action.data());
+            }
+
+            let multisend_data =
+                MutliSendCallOnly::multiSendCall::new((Bytes::from(encoded_transactions),))
+                    .abi_encode();
+
+            Bytes::from(multisend_data)
+        } else {
+            self.actions[0].data()
         }
-
-        let multisend_data =
-            MutliSendCallOnly::multiSendCall::new((Bytes::from(encoded_transactions),))
-                .abi_encode();
-
-        Bytes::from(multisend_data)
     }
 
     fn priority(&self) -> u32 {
@@ -83,10 +100,17 @@ impl Action for MultisendMetaAction {
     }
 
     fn describe(&self) -> Value {
-        json!({
-            "action": "MultiSend",
-            "multisend": self.multisend.to_string(),
-            "inner": self.actions.iter().map(|action| action.describe()).collect::<Vec<_>>()
-        })
+        if self.actions.len() > 1 {
+            json!({
+                "action": "MultiSend",
+                "multisend": self.multisend.unwrap().to_string(),
+                "inner": self.actions.iter().map(|action| action.describe()).collect::<Vec<_>>()
+            })
+        } else {
+            json!({
+                "action": "DirectCall",
+                "inner": self.actions.iter().map(|action| action.describe()).collect::<Vec<_>>()
+            })
+        }
     }
 }

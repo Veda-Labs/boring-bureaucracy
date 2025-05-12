@@ -24,7 +24,6 @@ pub struct TimelockMetaAction {
     sender: SenderType,
 }
 
-// TODO if action length 1, can use non batch functions
 impl TimelockMetaAction {
     pub async fn new(
         timelock: Address,
