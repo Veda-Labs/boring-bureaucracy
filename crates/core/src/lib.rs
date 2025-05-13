@@ -17,10 +17,8 @@ use actions::admin_action::AdminAction;
 use alloy::network::EthereumWallet;
 use alloy::primitives::{Address, Bytes, FixedBytes, U256};
 use alloy::providers::Provider;
-use alloy::rpc::types::Filter;
 use alloy::signers::ledger::{self, LedgerSigner};
 use alloy::signers::trezor::{self, TrezorSigner};
-use alloy::sol_types::SolEvent;
 use alloy::{providers::ProviderBuilder, sol_types::SolCall};
 use dotenv::dotenv;
 use eyre::{Result, eyre};
@@ -563,76 +561,58 @@ pub async fn exec_transaction(
     }
 
     // Get the threshold.
-    let threshold = safe.getThreshold().call().await?.threshold;
+    let threshold: u32 = safe.getThreshold().call().await?.threshold.try_into()?;
 
-    let latest_block = provider.get_block_number().await?;
-    let filter = Filter::new()
-        .address(safe_address)
-        .event_signature(GnosisSafe::ApproveHash::SIGNATURE_HASH)
-        .topic1(safe_hash)
-        .from_block(0)
-        .to_block(latest_block);
-    // .from_block(latest_block);
+    // Get the owners
+    let mut owners = safe.getOwners().call().await?.owners;
 
-    let logs = provider.get_logs(&filter).await?;
+    // Sort the owners in ascending order.
+    owners.sort();
 
-    println!("Found {} log(s)", logs.len());
+    // Iterate through each owner, and check if they signed the safe hash, if so append them to the final signature.
+    let mut signatures = Vec::new();
+    let mut signer_count: u32 = 0;
+    let mut has_not_approved = Vec::new();
+    for owner in &owners {
+        // Check if owner has approved the safe hash.
+        let has_approved = !safe
+            .approvedHashes(*owner, safe_hash)
+            .call()
+            .await?
+            ._0
+            .is_zero();
+        if has_approved {
+            // r: 32 bytes - padded address
+            signatures.extend_from_slice(owner.into_word().as_slice());
 
-    // Convert logs into Vec<Address>, parse the owner address from topic2
-    let mut approvers: Vec<Address> = logs
-        .iter()
-        .map(|log| {
-            let topic_bytes = log.topics()[2].as_slice();
-            Address::from_slice(&topic_bytes[12..]) // Convert last 20 bytes to Address
-        })
-        .collect();
+            // s: 32 bytes - all zeros
+            signatures.extend_from_slice(&[0u8; 32]);
 
-    // Sort addresses in ascending order
-    approvers.sort();
+            // v: 1 byte - always 1
+            signatures.push(1);
 
-    // Deduplicate in case an owner approved multiple times
-    approvers.dedup();
-
-    let threshold = threshold.to::<usize>();
-    if approvers.len() > threshold {
-        // Take only what we need for threshold
-        approvers.truncate(threshold);
-    } else if approvers.len() < threshold {
-        let owners = safe.getOwners().call().await?.owners;
+            signer_count += 1;
+        } else {
+            has_not_approved.push(*owner);
+        }
+        if signer_count >= threshold {
+            break;
+        }
+    }
+    if signer_count < threshold {
         // Find which owners haven't approved yet
-        let remaining_needed = threshold - approvers.len();
-        let mut available_signers: Vec<Address> = owners
-            .iter()
-            .filter(|owner| !approvers.contains(owner))
-            .copied()
-            .collect();
-
-        // Sort by address for consistent output
-        available_signers.sort();
+        let remaining_needed = threshold - signer_count;
 
         println!("\nNeed {} more signature(s) from:", remaining_needed);
-        for (i, owner) in available_signers.iter().enumerate() {
+        for (i, owner) in has_not_approved.iter().enumerate() {
             println!("{}. {}", i + 1, owner);
         }
 
         return Err(eyre!(
             "Not enough signers, have {}, need {}",
-            approvers.len(),
+            signer_count,
             threshold
         ));
-    }
-
-    // Create signatures bytes
-    let mut signatures = Vec::new();
-    for approver in approvers {
-        // r: 32 bytes - padded address
-        signatures.extend_from_slice(approver.into_word().as_slice());
-
-        // s: 32 bytes - all zeros
-        signatures.extend_from_slice(&[0u8; 32]);
-
-        // v: 1 byte - always 1
-        signatures.push(1);
     }
 
     let safe_tx_gas = U256::ZERO;

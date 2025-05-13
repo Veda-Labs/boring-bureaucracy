@@ -34,5 +34,6 @@ sol! {
             address payable refundReceiver,
             bytes memory signatures
         ) external;
+        function approvedHashes(address owner, bytes32 safeHash) external view returns(uint256);
     }
 }
