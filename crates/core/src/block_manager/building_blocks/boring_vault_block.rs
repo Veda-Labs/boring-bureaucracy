@@ -48,6 +48,7 @@ pub struct BoringVaultBlock {
 }
 
 // TODO how do we verify after deployment???
+// TODO could probably use util funcitons for shared logic between building blocks
 
 #[async_trait]
 impl BuildingBlock for BoringVaultBlock {
