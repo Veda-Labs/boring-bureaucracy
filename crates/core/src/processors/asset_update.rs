@@ -24,13 +24,13 @@ pub async fn process_asset_updates(
     let teller_addr_str = cw.get_product_config_value(product, network_id, "teller_address")?;
     let accountant_addr_str =
         cw.get_product_config_value(product, network_id, "accountant_address")?;
-
     let teller_addr = teller_addr_str.parse::<Address>()?;
     let accountant_addr = accountant_addr_str.parse::<Address>()?;
     let asset_addr = asset_data["asset"]
         .as_str()
         .ok_or_else(|| eyre!("asset must be a string"))?
         .parse::<Address>()?;
+
 
     // Query current rate provider data
     let provider = ProviderBuilder::new()
