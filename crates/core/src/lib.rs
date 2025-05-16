@@ -9,7 +9,10 @@ use crate::{
         manager::ManagerWithMerkleVerification, multisend::MutliSendCallOnly, multisig::GnosisSafe,
         timelock::Timelock,
     },
-    processors::{asset_update::process_asset_updates, root_update::process_merkle_root_update},
+    processors::{
+        asset_update::process_asset_updates, root_update::process_merkle_root_update,
+        update_fees::process_fee_updates,
+    },
     types::transaction::Transaction,
     utils::simulate::generate_safe_hash_and_return_params,
 };
@@ -110,6 +113,16 @@ pub async fn generate_admin_actions_from_json(
                 process_queue_asset_updates(action_sub_set, &cw, product, network_id, queue_asset)
                     .await?;
             }
+        }
+
+        if let Some(fee_data) = action["update_fees"].as_object() {
+            process_fee_updates(
+                &mut action_sub_set,
+                &cw,
+                product,
+                network_id,
+                &Value::Object(fee_data.clone()),
+            )?;
         }
 
         // TODO other admin actions

@@ -10,4 +10,6 @@ pub mod set_user_role_action;
 pub mod stop_withdraws_in_asset_action;
 pub mod timelock_action;
 pub mod update_asset_data_action;
+pub mod update_performance_fee_action;
+pub mod update_platform_fee_action;
 pub mod update_withdraw_asset_action;
