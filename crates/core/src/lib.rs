@@ -12,7 +12,7 @@ use crate::{
     processors::{
         asset_update::process_asset_updates, root_update::process_merkle_root_update,
         solver_update::process_solver_update, update_fees::process_fee_updates,
-        process_strategist_roles_update::process_strategist_roles_update,
+        strategist_roles::process_strategist_roles_update,
     },
     types::transaction::Transaction,
     utils::simulate::generate_safe_hash_and_return_params,

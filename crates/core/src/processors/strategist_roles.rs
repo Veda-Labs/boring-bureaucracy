@@ -49,10 +49,13 @@ pub fn process_strategist_roles_update(
 
     let mut role_ids: Vec<u8> = Vec::new();
     for role_val in roles_array {
-        let role_id = role_val
+        let role_id_u64 = role_val
             .as_u64()
-            .ok_or_else(|| eyre!("Each role ID in 'roles' must be a number"))?
-            as u8;
+            .ok_or_else(|| eyre!("Each role ID in 'roles' must be a number"))?;
+        
+        let role_id: u8 = role_id_u64
+            .try_into()
+            .map_err(|_| eyre!(format!("Role ID {} is out of range. Must be between 0 and 255", role_id_u64)))?;
         role_ids.push(role_id);
     }
 
