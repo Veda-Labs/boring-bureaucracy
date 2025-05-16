@@ -10,6 +10,7 @@ use eyre::Result;
 use serde_json::Value;
 
 // TODO this function could read state to se if it needs to update the fee or not.
+// TODO old products like liquid eth have different functions so this will fail
 pub fn process_fee_updates(
     admin_actions: &mut Vec<Box<dyn AdminAction>>,
     cw: &ConfigWrapper,
