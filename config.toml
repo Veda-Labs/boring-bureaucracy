@@ -40,18 +40,6 @@ strategists = [
     "0x71E2d6c34f569cC4Df5802d675B208FB8AE3Bcd6",
 ]
 
-[product.liquid_eth.default]
-multisig_address = "0xCEA8039076E35a825854c5C2f85659430b06ec96"
-vault_address = "0xf0bb20865277aBd641a307eCe5Ee04E79073416C"
-manager_address = "0x227975088C28DBBb4b421c6d96781a53578f19a8"
-accountant_address = "0x0d05D94a5F1E76C18fbeB7A13d17C8a314088198"
-teller_address = "0x5c135e8eC99557b412b9B4492510dCfBD36066F5"
-roles_authority_address = "0xd83C1C5050f73bbaaa2036F2e0D73163D180C123"
-strategists = [
-    "0x41DFc53B13932a2690C9790527C1967d8579a6ae",
-    "0x71E2d6c34f569cC4Df5802d675B208FB8AE3Bcd6",
-]
-
 [product.liquid_eth.1923]
 multisig_address = "0x3FF1db55460125C667f5d2c68aAaBdeDf3FB2948"
 vault_address = "0xf0bb20865277aBd641a307eCe5Ee04E79073416C"
