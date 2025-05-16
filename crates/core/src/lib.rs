@@ -11,7 +11,7 @@ use crate::{
     },
     processors::{
         asset_update::process_asset_updates, root_update::process_merkle_root_update,
-        update_fees::process_fee_updates,
+        solver_update::process_solver_update, update_fees::process_fee_updates,
     },
     types::transaction::Transaction,
     utils::simulate::generate_safe_hash_and_return_params,
@@ -122,6 +122,16 @@ pub async fn generate_admin_actions_from_json(
                 product,
                 network_id,
                 &Value::Object(fee_data.clone()),
+            )?;
+        }
+
+        if let Some(solver_data) = action["update_solver"].as_object() {
+            process_solver_update(
+                &mut action_sub_set,
+                &cw,
+                product,
+                network_id,
+                &Value::Object(solver_data.clone()),
             )?;
         }
 
