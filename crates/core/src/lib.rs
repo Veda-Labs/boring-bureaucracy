@@ -4,7 +4,7 @@ pub mod processors;
 pub mod types;
 pub mod utils;
 use crate::{
-    actions::{multisend_utils::create_multisend_data, timelock_action::TimelockAction},
+    actions::{multisend_utils::create_multisend_data, timelock_action::TimelockAction, set_merkle_root_action::SetMerkleRoot},
     bindings::{
         manager::ManagerWithMerkleVerification, multisend::MutliSendCallOnly, multisig::GnosisSafe,
         timelock::Timelock,
@@ -12,6 +12,7 @@ use crate::{
     processors::{
         asset_update::process_asset_updates, root_update::process_merkle_root_update,
         solver_update::process_solver_update, update_fees::process_fee_updates,
+        process_strategist_roles_update::process_strategist_roles_update,
     },
     types::transaction::Transaction,
     utils::simulate::generate_safe_hash_and_return_params,
@@ -125,6 +126,7 @@ pub async fn generate_admin_actions_from_json(
             )?;
         }
 
+        // Process solver updates if present
         if let Some(solver_data) = action["update_solver"].as_object() {
             process_solver_update(
                 &mut action_sub_set,
@@ -135,11 +137,43 @@ pub async fn generate_admin_actions_from_json(
             )?;
         }
 
-        // TODO other admin actions
-        // // Process role updates if present
-        // if let Some(new_roles) = action["new_roles"].as_array() {
-        //     process_role_updates(&mut admin_actions, &config, product, network_id, new_roles)?;
-        // }
+        // Process strategist updates (roles and potentially Merkle root for removal)
+        if let Some(strategist_update_data_val) = action.get("update_strategist") {
+            if let Some(strategist_update_data_obj) = strategist_update_data_val.as_object() {
+                // Process role updates (add or revoke)
+                process_strategist_roles_update(
+                    &mut action_sub_set,
+                    &cw,
+                    product,
+                    network_id,
+                    strategist_update_data_val, // Pass the original Value
+                )?;
+
+                // If operation is "revoke_roles", also set Merkle root to zero
+                if strategist_update_data_obj.get("operation").and_then(|v| v.as_str()) == Some("revoke_roles") {
+                    let strategist_address_str = strategist_update_data_obj
+                        .get("strategist_address")
+                        .and_then(|v| v.as_str())
+                        .ok_or_else(|| eyre!("'strategist_address' is required when revoking roles for 'update_strategist'"))?;
+                    let strategist_addr = strategist_address_str.parse::<Address>()?;
+                    
+                    let manager_addr_str = 
+                        cw.get_product_config_value(product, network_id, "manager_address")?;
+                    let manager_addr = manager_addr_str.parse::<Address>()?;
+
+                    let zero_root = FixedBytes::<32>::ZERO; // This is bytes32(0)
+
+                    let set_root_action = SetMerkleRoot::new(
+                        manager_addr,
+                        strategist_addr,
+                        zero_root,
+                    );
+                    action_sub_set.push(Box::new(set_root_action));
+                }
+            } else {
+                return Err(eyre!("'update_strategist' must be an object"));
+            }
+        }
     }
 
     // Get the multisig address (we know there's only one from earlier validation)

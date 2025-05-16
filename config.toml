@@ -478,3 +478,33 @@ teller_address = "0xbC08eF3368615Be8495EB394a0b7d8d5FC6d1A55"
 roles_authority_address = "0xED8C9A514eB81124e370015878ea1fB3fEF18158"
 queue_address = "0x84D988bA2f2838f6ccF61fDE77fe3EB70dFE284f"
 strategists = ["0x", "0x"]
+
+[product.royco_usd.1]
+multisig_address = "0x61A4df921e2D209ACD99C55001281d4050EF583D"
+vault_address = "0x74D1fAfa4e0163b2f1035F1b052137F3f9baD5cC"
+manager_address = "0xD4F870516a3B67b64238Bb803392Cd1A52D54Fb2"
+accountant_address = "0x80f0B206B7E5dAa1b1ba4ea1478A33241ee6baC9"
+teller_address = "0x60EBb5d1454Bb99aa35F63F609E79179b342B0b8"
+roles_authority_address = "0x754213aFB8ecb6D15F169bfD378Fb685f5cB0d4A"
+queue_address = "0x9ec26125feCdE8CE5c67346dB2E20C9026225440"
+strategist = ["0x", "0x"]
+
+[product.royco_usd.146]
+multisig_address = "0x61A4df921e2D209ACD99C55001281d4050EF583D"
+vault_address = "0x74D1fAfa4e0163b2f1035F1b052137F3f9baD5cC"
+manager_address = "0xD4F870516a3B67b64238Bb803392Cd1A52D54Fb2"
+accountant_address = "0x80f0B206B7E5dAa1b1ba4ea1478A33241ee6baC9"
+teller_address = "0x60EBb5d1454Bb99aa35F63F609E79179b342B0b8"
+roles_authority_address = "0x754213aFB8ecb6D15F169bfD378Fb685f5cB0d4A"
+queue_address = "0x9ec26125feCdE8CE5c67346dB2E20C9026225440"
+strategist = ["0x", "0x"]
+
+[product.royco_sonic_usd.146]
+multisig_address = "0x61A4df921e2D209ACD99C55001281d4050EF583D"
+vault_address = "0x45088fb2FfEBFDcf4dFf7b7201bfA4Cd2077c30E"
+manager_address = "0x0413986C24A254191c2D3fA8F0661789DE9B073B"
+accountant_address = "0x8301294E84cA5a2644E7F3CD47A86369F1b0416e"
+teller_address = "0x0F75c8176d4eBDff78d9a0c486B35d8F94b00A42"
+roles_authority_address = "0x28418E7Ec6Fdc2606Bc315288210c58450E69d10"
+queue_address = "0xd0885A285f9a00aa2d9734d2D26be1186f850E38"
+strategist = ["0x", "0x"]
