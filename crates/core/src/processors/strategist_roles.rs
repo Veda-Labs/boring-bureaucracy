@@ -1,8 +1,8 @@
 use crate::{
-    actions::{admin_action::AdminAction, set_user_role_action::SetUserRoleAction},
+    actions::{admin_action::AdminAction, set_user_role_action::SetUserRoleAction, set_merkle_root_action::SetMerkleRoot},
     types::config_wrapper::ConfigWrapper,
 };
-use alloy::primitives::Address;
+use alloy::primitives::{Address, FixedBytes};
 use eyre::{eyre, Result};
 use serde_json::Value;
 
@@ -59,8 +59,9 @@ pub fn process_strategist_roles_update(
         role_ids.push(role_id);
     }
 
-    if role_ids.is_empty() {
-        return Err(eyre!("'roles' array cannot be empty"));
+    if role_ids.is_empty() && !matches!(mode, StrategistUpdateMode::RevokeRoles) {
+        // Only error if not revoking. Revoking might only want to set a zero root without changing roles.
+        return Err(eyre!("'roles' array cannot be empty for 'add_roles' operation"));
     }
 
     // Get roles_authority address for the product
@@ -73,15 +74,33 @@ pub fn process_strategist_roles_update(
         StrategistUpdateMode::RevokeRoles => false,
     };
 
-    // Create SetUserRoleAction for each role
-    for role_id in role_ids {
-        let action = SetUserRoleAction::new(
-            roles_authority_addr,
+    // Create SetUserRoleAction for each role if roles are provided
+    if !role_ids.is_empty() {
+        for role_id in role_ids {
+            let action = SetUserRoleAction::new(
+                roles_authority_addr,
+                strategist_addr,
+                role_id,
+                enabled,
+            );
+            admin_actions.push(Box::new(action));
+        }
+    }
+
+    // If revoking roles, also set Merkle root to zero
+    if matches!(mode, StrategistUpdateMode::RevokeRoles) {
+        let manager_addr_str = 
+            cw.get_product_config_value(product, network_id, "manager_address")?;
+        let manager_addr = manager_addr_str.parse::<Address>()?;
+
+        let zero_root = FixedBytes::<32>::ZERO; // This is bytes32(0)
+
+        let set_root_action = SetMerkleRoot::new(
+            manager_addr,
             strategist_addr,
-            role_id,
-            enabled,
+            zero_root,
         );
-        admin_actions.push(Box::new(action));
+        admin_actions.push(Box::new(set_root_action));
     }
 
     Ok(())

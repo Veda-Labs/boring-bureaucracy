@@ -2,13 +2,14 @@
   "network_id": 1,
   "actions": [
     {
-      "product": "liquid_btc",
-      "update_strategist": {
-        "strategist_address": "0x6fA5d361Ab8165347F636217001E22a7cEF09B48",
-        "operation": "revoke_roles",
-        "roles": [7]
+      "product": "tac_usd",
+      "update_solver": {
+        "solver_contract": "0x0000000000000000000000000000000000000000",
+        "setup": true,
+        "tear_down": false,
+        "allow_withdraws": true
       }
     }
   ],
-  "nonce": 184
+  "nonce": 54
 }
