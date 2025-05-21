@@ -424,10 +424,7 @@ manager_address = "0x5E19854aC0c0d858ED0FeDe22Ab15A4C952176b7"
 accountant_address = "0x0454A1A6c63a0cB8bd075DF07e25df0552518172"
 teller_address = "0xDeeDd1b01280136c066225Fa074ed4C75DE5c8A1"
 roles_authority_address = "0x74D05103cE43Cff85A0E6aF6709121DcDd381F9a"
-strategists = [
-    "0x",
-    "0x",
-]
+strategists = ["0x", "0x"]
 
 [product.tac_eth.1]
 multisig_address = "0x6fCD43e66411ABBad5a950b469BA0cB1d2864Bf3"
@@ -531,9 +528,12 @@ vault_address = "0xBb30e76d9Bb2CC9631F7fC5Eb8e87B5Aff32bFbd"
 manager_address = "0x5dA93667DCc58b71726aFC595f116A6F166F9aeD"
 accountant_address = "0xC1a2C650D2DcC8EAb3D8942477De71be52318Acb"
 teller_address = "0xAce7DEFe3b94554f0704d8d00F69F273A0cFf079"
-roles_authority_address = "0xA7F4Aec487ca3F3A9b5ADDC058daFD4644725902"
+roles_authority_address = "0xe2C7E397b35fF40962eBc205217B6795520Fb264"
 queue_address = "0x488000E6a0CfC32DCB3f37115e759aF50F55b48B"
-strategists = ["0x8D3e2ede20B3Bbe781C88Bdaf472E1e265f38Db8", "0x7Ad69d482b56062b6e76D6e645FC5bFCB97C93b5"]
+strategists = [
+    "0x8D3e2ede20B3Bbe781C88Bdaf472E1e265f38Db8",
+    "0x7Ad69d482b56062b6e76D6e645FC5bFCB97C93b5",
+]
 
 [product.sonic_btc.146]
 multisig_address = "0x948dd9351D3721489Fe7A4530C55849cF0b4735D"
@@ -541,6 +541,9 @@ vault_address = "0xBb30e76d9Bb2CC9631F7fC5Eb8e87B5Aff32bFbd"
 manager_address = "0x5dA93667DCc58b71726aFC595f116A6F166F9aeD"
 accountant_address = "0xC1a2C650D2DcC8EAb3D8942477De71be52318Acb"
 teller_address = "0xAce7DEFe3b94554f0704d8d00F69F273A0cFf079"
-roles_authority_address = "0xA7F4Aec487ca3F3A9b5ADDC058daFD4644725902"
+roles_authority_address = "0xe2C7E397b35fF40962eBc205217B6795520Fb264"
 queue_address = "0x488000E6a0CfC32DCB3f37115e759aF50F55b48B"
-strategists = ["0xB26AEb430b5Bf6Be55763b42095E82DB9a1838B8", "0xE89CeE9837e6Fce3b1Ebd8E1C779b76fd6E20136"]
+strategists = [
+    "0xB26AEb430b5Bf6Be55763b42095E82DB9a1838B8",
+    "0xE89CeE9837e6Fce3b1Ebd8E1C779b76fd6E20136",
+]
