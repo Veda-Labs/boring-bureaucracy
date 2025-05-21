@@ -4,7 +4,7 @@ pub mod processors;
 pub mod types;
 pub mod utils;
 use crate::{
-    actions::{multisend_utils::create_multisend_data, timelock_action::TimelockAction},
+    actions::{multisend_utils::create_multisend_data, timelock_action::TimelockAction, set_merkle_root_action::SetMerkleRoot},
     bindings::{
         manager::ManagerWithMerkleVerification, multisend::MutliSendCallOnly, multisig::GnosisSafe,
         timelock::Timelock,
@@ -12,6 +12,7 @@ use crate::{
     processors::{
         asset_update::process_asset_updates, root_update::process_merkle_root_update,
         solver_update::process_solver_update, update_fees::process_fee_updates,
+        strategist_roles::process_strategist_roles_update,
     },
     types::transaction::Transaction,
     utils::simulate::generate_safe_hash_and_return_params,
@@ -125,6 +126,7 @@ pub async fn generate_admin_actions_from_json(
             )?;
         }
 
+        // Process solver updates if present
         if let Some(solver_data) = action["update_solver"].as_object() {
             process_solver_update(
                 &mut action_sub_set,
@@ -135,11 +137,16 @@ pub async fn generate_admin_actions_from_json(
             )?;
         }
 
-        // TODO other admin actions
-        // // Process role updates if present
-        // if let Some(new_roles) = action["new_roles"].as_array() {
-        //     process_role_updates(&mut admin_actions, &config, product, network_id, new_roles)?;
-        // }
+        // Process strategist updates (roles and potentially Merkle root for removal)
+        if let Some(strategist_update_data_val) = action.get("update_strategist") {
+            process_strategist_roles_update(
+                &mut action_sub_set,
+                &cw,
+                product,
+                network_id,
+                strategist_update_data_val, // Pass the original Value
+            )?;
+        }
     }
 
     // Get the multisig address (we know there's only one from earlier validation)
