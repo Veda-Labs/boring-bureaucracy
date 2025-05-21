@@ -9,6 +9,7 @@
 534352 = "env:SCROLL_RPC_URL"
 21000000 = "https://mainnet.corn-rpc.com"
 14 = "env:FLARE_RPC_URL"
+130 = "https://0xrpc.io/uni"
 
 [block_explorers]
 1 = "https://etherscan.io/"
@@ -21,6 +22,7 @@
 534352 = "https://scrollscan.com/"
 21000000 = "https://cornscan.io/"
 14 = "https://flarescan.com/"
+130 = "https://uniscan.xyz/"
 
 [multi_send_address]
 default = "40A2aCCbd92BCA938b02010E17A5b8929b49130D"
@@ -64,7 +66,7 @@ strategists = [
     "0x71E2d6c34f569cC4Df5802d675B208FB8AE3Bcd6",
 ]
 
-[product.liquid_usd.14] 
+[product.liquid_usd.14]
 multisig_address = "0x183fE88858AAB892cc796662200374e3dF6927E3"
 vault_address = "0x08c6F91e2B681FaF5e17227F2a44C307b3C1364C"
 manager_address = "0xcFF411d5C54FE0583A984beE1eF43a4776854B9A"
@@ -199,7 +201,7 @@ manager_address = "0x2531e80FD417F60048BDa5b92B7d0713cAa0c087"
 accountant_address = "0x2b9ad21652e5cCaf52BCcE5375aa32176240D39D"
 teller_address = "0x825254012306bB410b550631895fe58DdCE1f4a9"
 roles_authority_address = "0x8255CeE62568566742248B5eCa3f83B6B4780f98"
-timelock_address = "0x5acF0Bd22AEb91F9CFa714FE651916910025F079"
+# timelock_address = "0x5acF0Bd22AEb91F9CFa714FE651916910025F079"
 strategists = [
     "0xB26AEb430b5Bf6Be55763b42095E82DB9a1838B8",
     "0xE89CeE9837e6Fce3b1Ebd8E1C779b76fd6E20136",
@@ -353,7 +355,7 @@ strategists = [
 ]
 
 
-[product.sonic_lbtc_v.146]
+[product.sonic_lbtc_v.default]
 multisig_address = "0xb7cB7131FFc18f87eEc66991BECD18f2FF70d2af"
 vault_address = "0x309f25d839A2fe225E80210e110C99150Db98AAF"
 manager_address = "0x9D828035dd3C95452D4124870C110E7866ea6bb7"
