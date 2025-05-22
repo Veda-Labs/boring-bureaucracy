@@ -117,267 +117,267 @@ impl BuildingBlock for BoringVaultBlock {
     // TODO current logic is blocking when waiting for address resolution, but
     // this can be refactored to concurrently get values from the cache
     async fn resolve_state(&mut self, cache: &SharedCache, vrm: &ViewRequestManager) -> Result<()> {
-        if let Some(deployer) = &self.deployer {
-            cache
-                .set(
-                    "deployer",
-                    CacheValue::Address(*deployer),
-                    "boring_vault_block",
-                )
-                .await?;
-        } else {
-            // Read the value from the cache.
-            let result = cache.get("deployer", "boring_vault_block").await?;
-            match result {
-                CacheValue::Address(addr) => self.deployer = Some(addr),
-                _ => return Err(eyre!("BoringVaultBlock: Cache deployer is not an address")),
-            }
-        }
+        // if let Some(deployer) = &self.deployer {
+        //     cache
+        //         .set(
+        //             "deployer",
+        //             CacheValue::Address(*deployer),
+        //             "boring_vault_block",
+        //         )
+        //         .await?;
+        // } else {
+        //     // Read the value from the cache.
+        //     let result = cache.get("deployer", "boring_vault_block").await?;
+        //     match result {
+        //         CacheValue::Address(addr) => self.deployer = Some(addr),
+        //         _ => return Err(eyre!("BoringVaultBlock: Cache deployer is not an address")),
+        //     }
+        // }
 
-        if let Some(boring_vault) = &self.boring_vault {
-            match boring_vault {
-                AddressOrContractName::Address(addr) => {
-                    if vrm.request_code(*addr).await?.len() == 0 {
-                        return Err(eyre!(
-                            "BoringVaultBlock: Contract name must be specified to deploy boring vault"
-                        ));
-                    }
-                    self.boring_vault_address = Some(*addr);
-                    cache
-                        .set(
-                            "boring_vault",
-                            CacheValue::Address(*addr),
-                            "boring_vault_block",
-                        )
-                        .await?;
-                }
-                AddressOrContractName::ContractName(name) => {
-                    if let Some(deployer) = &self.deployer {
-                        let addr = derive_contract_address(name, *deployer);
-                        self.boring_vault_address = Some(addr);
-                        cache
-                            .set(
-                                "boring_vault",
-                                CacheValue::Address(addr),
-                                "boring_vault_block",
-                            )
-                            .await?;
-                    }
-                }
-            }
-        } else {
-            // Read the value from the cache.
-            let result = cache.get("boring_vault", "boring_vault_block").await?;
-            match result {
-                CacheValue::Address(addr) => self.boring_vault_address = Some(addr),
-                _ => {
-                    return Err(eyre!(
-                        "BoringVaultBlock: Cache boring_vault is not an address"
-                    ));
-                }
-            }
-        }
+        // if let Some(boring_vault) = &self.boring_vault {
+        //     match boring_vault {
+        //         AddressOrContractName::Address(addr) => {
+        //             if vrm.request_code(*addr).await?.len() == 0 {
+        //                 return Err(eyre!(
+        //                     "BoringVaultBlock: Contract name must be specified to deploy boring vault"
+        //                 ));
+        //             }
+        //             self.boring_vault_address = Some(*addr);
+        //             cache
+        //                 .set(
+        //                     "boring_vault",
+        //                     CacheValue::Address(*addr),
+        //                     "boring_vault_block",
+        //                 )
+        //                 .await?;
+        //         }
+        //         AddressOrContractName::ContractName(name) => {
+        //             if let Some(deployer) = &self.deployer {
+        //                 let addr = derive_contract_address(name, *deployer);
+        //                 self.boring_vault_address = Some(addr);
+        //                 cache
+        //                     .set(
+        //                         "boring_vault",
+        //                         CacheValue::Address(addr),
+        //                         "boring_vault_block",
+        //                     )
+        //                     .await?;
+        //             }
+        //         }
+        //     }
+        // } else {
+        //     // Read the value from the cache.
+        //     let result = cache.get("boring_vault").await?;
+        //     match result {
+        //         CacheValue::Address(addr) => self.boring_vault_address = Some(addr),
+        //         _ => {
+        //             return Err(eyre!(
+        //                 "BoringVaultBlock: Cache boring_vault is not an address"
+        //             ));
+        //         }
+        //     }
+        // }
 
-        if let Some(roles_authority) = &self.roles_authority {
-            match roles_authority {
-                AddressOrContractName::Address(addr) => {
-                    self.roles_authority_address = Some(*addr);
-                    cache
-                        .set(
-                            "roles_authority",
-                            CacheValue::Address(*addr),
-                            "boring_vault_block",
-                        )
-                        .await?;
-                }
-                AddressOrContractName::ContractName(name) => {
-                    if let Some(deployer) = &self.deployer {
-                        let addr = derive_contract_address(name, *deployer);
-                        self.roles_authority_address = Some(addr);
-                        cache
-                            .set(
-                                "roles_authority",
-                                CacheValue::Address(addr),
-                                "boring_vault_block",
-                            )
-                            .await?;
-                    }
-                }
-            }
-        } else {
-            // Read the value from the cache.
-            let result = cache.get("roles_authority", "boring_vault_block").await;
-            if let Ok(res) = result {
-                match res {
-                    CacheValue::Address(addr) => self.roles_authority_address = Some(addr),
-                    _ => {
-                        return Err(eyre!(
-                            "BoringVaultBlock: Cache roles_authority is not an address"
-                        ));
-                    }
-                }
-            } else {
-                // Try to query the roles authority from the boring vault.
-                if let Some(boring_vault) = &self.boring_vault_address {
-                    let calldata = Bytes::from(Auth::authorityCall::new(()).abi_encode());
-                    let result = vrm.request(*boring_vault, calldata).await;
-                    if let Ok(res) = result {
-                        let data = Auth::authorityCall::abi_decode_returns(&res, true)?;
-                        self.roles_authority_address = Some(data.authority);
-                        cache
-                            .set(
-                                "roles_authority",
-                                CacheValue::Address(data.authority),
-                                "boring_vault_block",
-                            )
-                            .await?;
-                    }
-                }
-            }
-        }
+        // if let Some(roles_authority) = &self.roles_authority {
+        //     match roles_authority {
+        //         AddressOrContractName::Address(addr) => {
+        //             self.roles_authority_address = Some(*addr);
+        //             cache
+        //                 .set(
+        //                     "roles_authority",
+        //                     CacheValue::Address(*addr),
+        //                     "boring_vault_block",
+        //                 )
+        //                 .await?;
+        //         }
+        //         AddressOrContractName::ContractName(name) => {
+        //             if let Some(deployer) = &self.deployer {
+        //                 let addr = derive_contract_address(name, *deployer);
+        //                 self.roles_authority_address = Some(addr);
+        //                 cache
+        //                     .set(
+        //                         "roles_authority",
+        //                         CacheValue::Address(addr),
+        //                         "boring_vault_block",
+        //                     )
+        //                     .await?;
+        //             }
+        //         }
+        //     }
+        // } else {
+        //     // Read the value from the cache.
+        //     let result = cache.get("roles_authority").await;
+        //     if let Ok(res) = result {
+        //         match res {
+        //             CacheValue::Address(addr) => self.roles_authority_address = Some(addr),
+        //             _ => {
+        //                 return Err(eyre!(
+        //                     "BoringVaultBlock: Cache roles_authority is not an address"
+        //                 ));
+        //             }
+        //         }
+        //     } else {
+        //         // Try to query the roles authority from the boring vault.
+        //         if let Some(boring_vault) = &self.boring_vault_address {
+        //             let calldata = Bytes::from(Auth::authorityCall::new(()).abi_encode());
+        //             let result = vrm.request(*boring_vault, calldata).await;
+        //             if let Ok(res) = result {
+        //                 let data = Auth::authorityCall::abi_decode_returns(&res, true)?;
+        //                 self.roles_authority_address = Some(data.authority);
+        //                 cache
+        //                     .set(
+        //                         "roles_authority",
+        //                         CacheValue::Address(data.authority),
+        //                         "boring_vault_block",
+        //                     )
+        //                     .await?;
+        //             }
+        //         }
+        //     }
+        // }
 
-        if let Some(decimals) = self.boring_vault_decimals {
-            cache
-                .set(
-                    "boring_vault_decimals",
-                    CacheValue::U8(decimals),
-                    "boring_vault_block",
-                )
-                .await?;
-        } else {
-            // Try to query decimals from the boring vault.
-            if let Some(boring_vault) = &self.boring_vault_address {
-                let calldata = Bytes::from(BoringVault::decimalsCall::new(()).abi_encode());
-                let result = vrm.request(*boring_vault, calldata).await;
-                if let Ok(res) = result {
-                    let data = BoringVault::decimalsCall::abi_decode_returns(&res, true)?;
-                    self.boring_vault_decimals = Some(data._0);
-                    cache
-                        .set(
-                            "boring_vault_decimals",
-                            CacheValue::U8(data._0),
-                            "boring_vault_block",
-                        )
-                        .await?;
-                } // else leave boring_vault_decimals as None
-            }
-        }
+        // if let Some(decimals) = self.boring_vault_decimals {
+        //     cache
+        //         .set(
+        //             "boring_vault_decimals",
+        //             CacheValue::U8(decimals),
+        //             "boring_vault_block",
+        //         )
+        //         .await?;
+        // } else {
+        //     // Try to query decimals from the boring vault.
+        //     if let Some(boring_vault) = &self.boring_vault_address {
+        //         let calldata = Bytes::from(BoringVault::decimalsCall::new(()).abi_encode());
+        //         let result = vrm.request(*boring_vault, calldata).await;
+        //         if let Ok(res) = result {
+        //             let data = BoringVault::decimalsCall::abi_decode_returns(&res, true)?;
+        //             self.boring_vault_decimals = Some(data._0);
+        //             cache
+        //                 .set(
+        //                     "boring_vault_decimals",
+        //                     CacheValue::U8(data._0),
+        //                     "boring_vault_block",
+        //                 )
+        //                 .await?;
+        //         } // else leave boring_vault_decimals as None
+        //     }
+        // }
 
-        if let Some(hook) = &self.hook {
-            match hook {
-                AddressOrContractName::Address(addr) => {
-                    self.hook_address = Some(*addr);
-                    cache
-                        .set("hook", CacheValue::Address(*addr), "boring_vault_block")
-                        .await?;
-                }
-                AddressOrContractName::ContractName(name) => {
-                    if let Some(deployer) = &self.deployer {
-                        let addr = derive_contract_address(name, *deployer);
-                        self.hook_address = Some(addr);
-                        cache
-                            .set("hook", CacheValue::Address(addr), "boring_vault_block")
-                            .await?;
-                    }
-                }
-            }
-        } else {
-            // Read the value from the cache.
-            let result = cache.get("hook", "boring_vault_block").await;
-            if let Ok(res) = result {
-                match res {
-                    CacheValue::Address(addr) => self.hook_address = Some(addr),
-                    _ => {
-                        return Err(eyre!("BoringVaultBlock: Cache hook is not an address"));
-                    }
-                }
-            } else {
-                warn!("BoringVaultBlock: hook address not defined locally or in cache");
-            }
-        }
+        // if let Some(hook) = &self.hook {
+        //     match hook {
+        //         AddressOrContractName::Address(addr) => {
+        //             self.hook_address = Some(*addr);
+        //             cache
+        //                 .set("hook", CacheValue::Address(*addr), "boring_vault_block")
+        //                 .await?;
+        //         }
+        //         AddressOrContractName::ContractName(name) => {
+        //             if let Some(deployer) = &self.deployer {
+        //                 let addr = derive_contract_address(name, *deployer);
+        //                 self.hook_address = Some(addr);
+        //                 cache
+        //                     .set("hook", CacheValue::Address(addr), "boring_vault_block")
+        //                     .await?;
+        //             }
+        //         }
+        //     }
+        // } else {
+        //     // Read the value from the cache.
+        //     let result = cache.get("hook", "boring_vault_block").await;
+        //     if let Ok(res) = result {
+        //         match res {
+        //             CacheValue::Address(addr) => self.hook_address = Some(addr),
+        //             _ => {
+        //                 return Err(eyre!("BoringVaultBlock: Cache hook is not an address"));
+        //             }
+        //         }
+        //     } else {
+        //         warn!("BoringVaultBlock: hook address not defined locally or in cache");
+        //     }
+        // }
 
-        if let Some(manager) = &self.manager {
-            match manager {
-                AddressOrContractName::Address(addr) => {
-                    self.manager_address = Some(*addr);
-                    cache
-                        .set("manager", CacheValue::Address(*addr), "boring_vault_block")
-                        .await?;
-                }
-                AddressOrContractName::ContractName(name) => {
-                    if let Some(deployer) = &self.deployer {
-                        let addr = derive_contract_address(name, *deployer);
-                        self.manager_address = Some(addr);
-                        cache
-                            .set("manager", CacheValue::Address(addr), "boring_vault_block")
-                            .await?;
-                    }
-                }
-            }
-        } else {
-            // Read the value from the cache.
-            let result = cache.get("manager", "boring_vault_block").await;
-            if let Ok(res) = result {
-                match res {
-                    CacheValue::Address(addr) => self.manager_address = Some(addr),
-                    _ => {
-                        return Err(eyre!("BoringVaultBlock: Cache manager is not an address"));
-                    }
-                }
-            } else {
-                warn!("BoringVaultBlock: manager address not defined locally or in cache");
-            }
-        }
+        // if let Some(manager) = &self.manager {
+        //     match manager {
+        //         AddressOrContractName::Address(addr) => {
+        //             self.manager_address = Some(*addr);
+        //             cache
+        //                 .set("manager", CacheValue::Address(*addr), "boring_vault_block")
+        //                 .await?;
+        //         }
+        //         AddressOrContractName::ContractName(name) => {
+        //             if let Some(deployer) = &self.deployer {
+        //                 let addr = derive_contract_address(name, *deployer);
+        //                 self.manager_address = Some(addr);
+        //                 cache
+        //                     .set("manager", CacheValue::Address(addr), "boring_vault_block")
+        //                     .await?;
+        //             }
+        //         }
+        //     }
+        // } else {
+        //     // Read the value from the cache.
+        //     let result = cache.get("manager", "boring_vault_block").await;
+        //     if let Ok(res) = result {
+        //         match res {
+        //             CacheValue::Address(addr) => self.manager_address = Some(addr),
+        //             _ => {
+        //                 return Err(eyre!("BoringVaultBlock: Cache manager is not an address"));
+        //             }
+        //         }
+        //     } else {
+        //         warn!("BoringVaultBlock: manager address not defined locally or in cache");
+        //     }
+        // }
 
-        if let Some(teller) = &self.teller {
-            match teller {
-                AddressOrContractName::Address(addr) => {
-                    self.teller_address = Some(*addr);
-                    cache
-                        .set("teller", CacheValue::Address(*addr), "boring_vault_block")
-                        .await?;
-                }
-                AddressOrContractName::ContractName(name) => {
-                    if let Some(deployer) = &self.deployer {
-                        let addr = derive_contract_address(name, *deployer);
-                        self.teller_address = Some(addr);
-                        cache
-                            .set("teller", CacheValue::Address(addr), "boring_vault_block")
-                            .await?;
-                    }
-                }
-            }
-        } else {
-            // Read the value from the cache.
-            let result = cache.get("teller", "boring_vault_block").await;
-            if let Ok(res) = result {
-                match res {
-                    CacheValue::Address(addr) => self.teller_address = Some(addr),
-                    _ => {
-                        return Err(eyre!("BoringVaultBlock: Cache teller is not an address"));
-                    }
-                }
-            } else {
-                warn!("BoringVaultBlock: teller address not defined locally or in cache");
-            }
-        }
+        // if let Some(teller) = &self.teller {
+        //     match teller {
+        //         AddressOrContractName::Address(addr) => {
+        //             self.teller_address = Some(*addr);
+        //             cache
+        //                 .set("teller", CacheValue::Address(*addr), "boring_vault_block")
+        //                 .await?;
+        //         }
+        //         AddressOrContractName::ContractName(name) => {
+        //             if let Some(deployer) = &self.deployer {
+        //                 let addr = derive_contract_address(name, *deployer);
+        //                 self.teller_address = Some(addr);
+        //                 cache
+        //                     .set("teller", CacheValue::Address(addr), "boring_vault_block")
+        //                     .await?;
+        //             }
+        //         }
+        //     }
+        // } else {
+        //     // Read the value from the cache.
+        //     let result = cache.get("teller", "boring_vault_block").await;
+        //     if let Ok(res) = result {
+        //         match res {
+        //             CacheValue::Address(addr) => self.teller_address = Some(addr),
+        //             _ => {
+        //                 return Err(eyre!("BoringVaultBlock: Cache teller is not an address"));
+        //             }
+        //         }
+        //     } else {
+        //         warn!("BoringVaultBlock: teller address not defined locally or in cache");
+        //     }
+        // }
 
-        if let Some(executor) = self.executor {
-            cache
-                .set("executor", CacheValue::Address(executor), "global_block")
-                .await?;
-        } else {
-            // Try reading executor from cache.
-            let result = cache.get("executor", "boring_vault_block").await?;
-            match result {
-                CacheValue::Address(addr) => self.executor = Some(addr),
-                _ => {
-                    return Err(eyre!(
-                        "BoringVaultBlock: executor not defined locally or in cache"
-                    ));
-                }
-            }
-        }
+        // if let Some(executor) = self.executor {
+        //     cache
+        //         .set("executor", CacheValue::Address(executor), "global_block")
+        //         .await?;
+        // } else {
+        //     // Try reading executor from cache.
+        //     let result = cache.get("executor", "boring_vault_block").await?;
+        //     match result {
+        //         CacheValue::Address(addr) => self.executor = Some(addr),
+        //         _ => {
+        //             return Err(eyre!(
+        //                 "BoringVaultBlock: executor not defined locally or in cache"
+        //             ));
+        //         }
+        //     }
+        // }
 
         Ok(())
     }

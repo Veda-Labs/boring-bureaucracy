@@ -1,7 +1,7 @@
 use alloy::dyn_abi::SolType;
 use alloy::primitives::{Address, b256, keccak256};
 use alloy::sol_types::sol_data;
-use eyre::Result;
+use eyre::{Result, eyre};
 use serde::{Deserialize, Deserializer, de::Error};
 
 #[derive(Debug, PartialEq)]
@@ -25,6 +25,23 @@ impl<'de> Deserialize<'de> for AddressOrContractName {
             ));
         } else {
             Ok(AddressOrContractName::ContractName(s))
+        }
+    }
+}
+
+impl AddressOrContractName {
+    pub fn resolve_to_address(&self, deployer: Option<Address>) -> Result<Address> {
+        match self {
+            AddressOrContractName::Address(addr) => Ok(*addr),
+            AddressOrContractName::ContractName(s) => {
+                if let Some(deployer_addr) = deployer {
+                    Ok(derive_contract_address(&s, deployer_addr))
+                } else {
+                    Err(eyre!(
+                        "block_utils: Cannot resolve contract name to address without deployer"
+                    ))
+                }
+            }
         }
     }
 }

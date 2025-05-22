@@ -8,4 +8,21 @@ use eyre::Result;
 pub trait BuildingBlock: Send + Sync {
     async fn assemble(&self, vrm: &ViewRequestManager) -> Result<Vec<Box<dyn Action>>>;
     async fn resolve_state(&mut self, cache: &SharedCache, vrm: &ViewRequestManager) -> Result<()>;
+
+    async fn resolve_provides(&self, _cache: &SharedCache) -> Result<()> {
+        Ok(()) // Default implementation does nothing
+    }
+
+    async fn resolve_requires(&self, _cache: &SharedCache) -> Result<Vec<(String, bool)>> {
+        Ok(Vec::new()) // Default implementation returns empty vector
+    }
+
+    async fn resolve_value(
+        &self,
+        _key: &str,
+        _cache: &SharedCache,
+        _vrm: &ViewRequestManager,
+    ) -> Result<bool> {
+        Ok(false) // Default implementation cannot resolve any values
+    }
 }

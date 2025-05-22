@@ -2,8 +2,7 @@ use alloy::primitives::Address;
 use eyre::{Result, eyre};
 use std::collections::HashMap;
 use std::sync::Arc;
-use std::time::Duration;
-use tokio::sync::{RwLock, broadcast};
+use tokio::sync::RwLock;
 // The different types that can be stored in cache
 #[derive(Debug, Clone, PartialEq)]
 pub enum CacheValue {
@@ -16,137 +15,208 @@ pub enum CacheValue {
 
 // Structure to hold both the value and any pending requests
 struct CacheEntry {
-    value: Option<CacheValue>,
-    // Broadcast channel for multiple readers
-    subscribers: broadcast::Sender<CacheValue>,
+    value: CacheValue,
     // Tag of the block that first set this value
-    origin: Option<String>,
+    origin: String,
 }
 
 // The main cache structure
 pub struct SharedCache {
     // Main storage
     storage: RwLock<HashMap<String, CacheEntry>>,
-    // Configuration
-    timeout: Duration,
 }
 
 // Create a type alias for the shared cache
 pub type SharedCacheRef = Arc<SharedCache>;
 
 impl SharedCache {
-    pub fn new(timeout: Duration) -> Self {
+    pub fn new() -> Self {
         Self {
             storage: RwLock::new(HashMap::new()),
-            timeout,
         }
     }
 
-    pub async fn get(&self, key: &str, tag: &str) -> Result<CacheValue> {
-        let mut storage = self.storage.write().await;
-
-        // Check if value exists
-        if let Some(entry) = storage.get(key) {
-            if let Some(value) = &entry.value {
-                return Ok(value.clone());
-            }
-        }
-
-        // Value doesn't exist, create new entry with broadcast channel
-        let (tx, mut rx) = broadcast::channel(16);
-        let entry = CacheEntry {
-            value: None,
-            subscribers: tx,
-            origin: None,
-        };
-        storage.insert(key.to_string(), entry);
-
-        // Wait for value with timeout
-        tokio::select! {
-            Ok(value) = rx.recv() => Ok(value),
-            _ = tokio::time::sleep(self.timeout) => {
-                Err(eyre!("Timeout waiting for cache value: {}, (from {})", key, tag))
-            }
-        }
-    }
-
-    pub async fn get_immediate(&self, key: &str) -> Result<CacheValue> {
+    // Try to get a value, returning None if it doesn't exist
+    pub async fn get(&self, key: &str) -> Option<CacheValue> {
         let storage = self.storage.read().await;
-
-        if let Some(entry) = storage.get(key) {
-            if let Some(value) = &entry.value {
-                return Ok(value.clone());
-            }
-        }
-
-        Err(eyre!("Cache value not found: {}", key))
+        storage.get(key).map(|entry| entry.value.clone())
     }
 
-    pub async fn try_get(&self, key: &str) -> Option<CacheValue> {
-        let storage = self.storage.read().await;
-
-        if let Some(entry) = storage.get(key) {
-            if let Some(value) = &entry.value {
-                return Some(value.clone());
-            }
+    // Get a value with error if missing
+    pub async fn get_required(&self, key: &str, requester: &str) -> Result<CacheValue> {
+        if let Some(value) = self.get(key).await {
+            Ok(value)
+        } else {
+            Err(eyre!(
+                "Required cache value not found: {} (requested by {})",
+                key,
+                requester
+            ))
         }
-
-        None
     }
 
-    pub async fn try_get_address(&self, key: &str) -> Option<Address> {
-        let storage = self.storage.read().await;
-
-        if let Some(entry) = storage.get(key) {
-            if let Some(value) = &entry.value {
-                match value {
-                    CacheValue::Address(addr) => {
-                        return Some(*addr);
-                    }
-                    _ => {
-                        return None;
-                    }
-                }
+    // Convenience method to get an address
+    pub async fn get_address(&self, key: &str) -> Option<Address> {
+        if let Some(value) = self.get(key).await {
+            match value {
+                CacheValue::Address(addr) => Some(addr),
+                _ => None,
             }
+        } else {
+            None
         }
-
-        None
     }
 
-    pub async fn set(&self, key: &str, value: CacheValue, tag: &str) -> Result<()> {
+    // Set a value with origin tracking and conflict detection
+    pub async fn set(&self, key: &str, value: CacheValue, origin: &str) -> Result<()> {
         let mut storage = self.storage.write().await;
 
         if let Some(entry) = storage.get(key) {
-            // Check if value matches existing
-            if let Some(existing) = &entry.value {
-                if existing != &value {
-                    return Err(eyre!(
-                        "Cache value mismatch for key {}: existing={:?} (from {}), new={:?} (from {})",
-                        key,
-                        existing,
-                        entry.origin.as_deref().unwrap_or("unknown"),
-                        value,
-                        tag
-                    ));
-                }
-                return Ok(());
+            // Check for value conflicts
+            if entry.value != value {
+                return Err(eyre!(
+                    "Cache value conflict for key {}: existing={:?} (from {}), new={:?} (from {})",
+                    key,
+                    entry.value,
+                    entry.origin,
+                    value,
+                    origin
+                ));
             }
+            // Value already exists and matches, nothing to do
+            return Ok(());
         }
 
-        // Create new entry or update existing
-        let (tx, _) = broadcast::channel(16);
+        // Create new entry
         let entry = CacheEntry {
-            value: Some(value.clone()),
-            subscribers: tx,
-            origin: Some(tag.to_string()),
+            value,
+            origin: origin.to_string(),
         };
+
         storage.insert(key.to_string(), entry);
-
-        // Notify all waiting readers
-        if let Some(entry) = storage.get(key) {
-            let _ = entry.subscribers.send(value);
-        }
-
         Ok(())
+    }
+
+    // Get all keys (useful for debugging)
+    pub async fn get_all_keys(&self) -> Vec<String> {
+        let storage = self.storage.read().await;
+        storage.keys().cloned().collect()
+    }
+
+    // Check if a key exists
+    pub async fn has_key(&self, key: &str) -> bool {
+        let storage = self.storage.read().await;
+        storage.contains_key(key)
+    }
+
+    #[cfg(test)]
+    pub async fn clear(&self, key: &str) -> Result<()> {
+        let mut storage = self.storage.write().await;
+        storage.remove(key);
+        Ok(())
+    }
+
+    #[cfg(test)]
+    pub async fn clear_all(&self) -> Result<()> {
+        let mut storage = self.storage.write().await;
+        storage.clear();
+        Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use alloy::primitives::address;
+
+    #[tokio::test]
+    async fn test_basic_operations() {
+        let cache = SharedCache::new();
+
+        // Set a value
+        cache
+            .set(
+                "test_key",
+                CacheValue::String("test_value".to_string()),
+                "test_origin",
+            )
+            .await
+            .unwrap();
+
+        // Get the value
+        let value = cache.get("test_key").await.unwrap();
+        assert_eq!(value, CacheValue::String("test_value".to_string()));
+
+        // Try to get non-existent value
+        let missing = cache.get("missing_key").await;
+        assert!(missing.is_none());
+
+        // Set same value again (should work)
+        cache
+            .set(
+                "test_key",
+                CacheValue::String("test_value".to_string()),
+                "other_origin",
+            )
+            .await
+            .unwrap();
+
+        // Try to set conflicting value
+        let result = cache
+            .set("test_key", CacheValue::U8(123), "conflict_origin")
+            .await;
+        assert!(result.is_err());
+    }
+
+    #[tokio::test]
+    async fn test_address_handling() {
+        let cache = SharedCache::new();
+        let addr = address!("0x1234567890123456789012345678901234567890");
+
+        // Set an address
+        cache
+            .set("test_addr", CacheValue::Address(addr), "test_origin")
+            .await
+            .unwrap();
+
+        // Get the address directly
+        let retrieved = cache.get_address("test_addr").await.unwrap();
+        assert_eq!(retrieved, addr);
+
+        // Try to get non-existent address
+        let missing = cache.get_address("missing_addr").await;
+        assert!(missing.is_none());
+
+        // Try to get wrong type as address
+        cache
+            .set("test_u8", CacheValue::U8(123), "test_origin")
+            .await
+            .unwrap();
+        let wrong_type = cache.get_address("test_u8").await;
+        assert!(wrong_type.is_none());
+    }
+
+    #[tokio::test]
+    async fn test_clear_operations() {
+        let cache = SharedCache::new();
+
+        // Set multiple values
+        cache
+            .set("key1", CacheValue::U8(1), "origin1")
+            .await
+            .unwrap();
+        cache
+            .set("key2", CacheValue::U8(2), "origin2")
+            .await
+            .unwrap();
+
+        // Clear one key
+        cache.clear("key1").await.unwrap();
+        assert!(cache.get("key1").await.is_none());
+        assert!(cache.get("key2").await.is_some());
+
+        // Clear all
+        cache.clear_all().await.unwrap();
+        assert!(cache.get("key2").await.is_none());
     }
 }

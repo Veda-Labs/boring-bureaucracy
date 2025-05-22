@@ -18,7 +18,7 @@ use alloy::providers::ProviderBuilder;
 
 use eyre::{Result, eyre};
 use serde_json::Value;
-use std::time::Duration;
+use std::collections::HashMap;
 
 pub struct BlockManager {
     pub blocks: Vec<Box<dyn BuildingBlock>>,
@@ -35,7 +35,7 @@ impl BlockManager {
         let vrm = ViewRequestManager::new(Self::WORKER_COUNT, provider, latest_block_number).into();
         Ok(Self {
             blocks: vec![],
-            cache: SharedCache::new(Duration::from_secs(10)).into(),
+            cache: SharedCache::new().into(),
             vrm: vrm,
         })
     }
@@ -70,29 +70,83 @@ impl BlockManager {
         Ok(())
     }
 
+    // TODO this should do the global block first, THEN all the other ones so that deployer is defined.
     pub async fn propogate_shared_data(&mut self) -> Result<()> {
-        let mut handles = Vec::new();
-        let blocks = std::mem::take(&mut self.blocks);
-
-        for mut block in blocks {
-            let cache = self.cache.clone();
-            let vrm = self.vrm.clone();
-            let handle = tokio::spawn(async move {
-                block.resolve_state(&cache, &vrm).await?;
-                Ok::<Box<dyn BuildingBlock>, eyre::Error>(block) // Explicitly specify the type
-            });
-            handles.push(handle);
+        // Step 1: Resolve all provided values
+        for block in &self.blocks {
+            block.resolve_provides(&self.cache).await?;
         }
 
-        // Wait for all blocks to complete
-        let mut processed_blocks = Vec::new();
-        for handle in handles {
-            let block = handle.await??; // First ? for JoinError, second ? for our Result
-            processed_blocks.push(block);
+        // Step 2: Collect missing requirements and conflicts
+        let mut missing_requirements = HashMap::new();
+        let mut conflicts = Vec::new();
+
+        for (i, block) in self.blocks.iter().enumerate() {
+            let block_missing = block.resolve_requires(&self.cache).await?;
+            for req in block_missing {
+                let (key, can_derive) = (req.0, req.1);
+
+                // Check for conflicts (multiple blocks trying to derive the same value)
+                if can_derive {
+                    if let Some(Some(existing_idx)) = missing_requirements.get(&key) {
+                        conflicts.push((key.clone(), i, *existing_idx));
+                        continue;
+                    }
+                }
+
+                // No conflict detected, update the map
+                let entry = missing_requirements.entry(key).or_insert(if can_derive {
+                    Some(i)
+                } else {
+                    None
+                });
+
+                // Update entry if this block can derive but previous one couldn't
+                if can_derive && entry.is_none() {
+                    *entry = Some(i);
+                }
+            }
         }
 
-        // Restore blocks to self
-        self.blocks = processed_blocks;
+        // After collecting, handle conflicts
+        if !conflicts.is_empty() {
+            let first_conflict = &conflicts[0];
+            return Err(eyre!(
+                "Multiple blocks trying to derive value '{}': block {} and block {}",
+                first_conflict.0,
+                first_conflict.1,
+                first_conflict.2
+            ));
+        }
+
+        // Step 3: Try to resolve all derivable values
+        let mut made_progress = true;
+
+        while made_progress {
+            made_progress = false;
+
+            // Make a copy to avoid borrowing issues during iteration
+            let requirements_to_process: Vec<(String, Option<usize>)> = missing_requirements
+                .iter()
+                .map(|(k, v)| (k.clone(), *v))
+                .collect();
+
+            for (key, maybe_block_idx) in requirements_to_process {
+                if let Some(block_idx) = maybe_block_idx {
+                    let block = &self.blocks[block_idx];
+                    if block.resolve_value(&key, &self.cache, &self.vrm).await? {
+                        // Value was resolved, remove from missing
+                        missing_requirements.remove(&key);
+                        made_progress = true;
+                    }
+                }
+            }
+
+            if !made_progress && !missing_requirements.is_empty() {
+                // We tried but could not resolve everything
+                break;
+            }
+        }
 
         Ok(())
     }
@@ -119,7 +173,7 @@ impl BlockManager {
         } else {
             let executor = self
                 .cache
-                .try_get_address("executor")
+                .get_address("executor")
                 .await
                 .expect("BlockManager: Expected executor to be defined and to be an address");
 
@@ -182,8 +236,7 @@ impl BlockManager {
                                 SenderType::Multisig(multisig) => {
                                     if chunk_transition {
                                         // Batch current chunk into a Multisend meta action
-                                        let multisend =
-                                            self.cache.try_get_address("multisend").await;
+                                        let multisend = self.cache.get_address("multisend").await;
                                         let meta_action = MultisendMetaAction::new(
                                             multisig,
                                             multisend,
@@ -195,7 +248,7 @@ impl BlockManager {
                                 SenderType::Timelock(timelock) => {
                                     if chunk_transition {
                                         // Batch current chunk into a Timelock meta action
-                                        let timelock_admin = self.cache.try_get_address("timelock_admin").await.expect("BlockManager: Expected timelock_admin to be defined and an address");
+                                        let timelock_admin = self.cache.get_address("timelock_admin").await.expect("BlockManager: Expected timelock_admin to be defined and an address");
 
                                         // TODO delay could be a value optionally read from the cache.
                                         // TODO timelock_admin can technically have sender type EOA too, so maybe write that into the cache too?
