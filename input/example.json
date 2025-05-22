@@ -2,14 +2,41 @@
   "network_id": 1,
   "actions": [
     {
-      "product": "tac_usd",
-      "update_solver": {
-        "solver_contract": "0x0000000000000000000000000000000000000000",
-        "setup": true,
-        "tear_down": false,
-        "allow_withdraws": true
+      "product": "sc_usd",
+      "update_strategist": {
+        "operation": "add_roles",
+        "roles": [7],
+        "strategist_address": "0x0792dCb7080466e4Bbc678Bdb873FE7D969832B8"
       }
+    },
+    {
+      "product": "sc_eth",
+      "update_strategist": {
+        "operation": "add_roles",
+        "roles": [7],
+        "strategist_address": "0x0792dCb7080466e4Bbc678Bdb873FE7D969832B8"
+      }
+    },
+    {
+      "product": "sonic_btc",
+      "update_strategist": {
+        "operation": "add_roles",
+        "roles": [7],
+        "strategist_address": "0x0792dCb7080466e4Bbc678Bdb873FE7D969832B8"
+      }
+    },
+    {
+      "new_root": "0x985d4cd9f51ddff715359fcf7058e45ca27ae4b7eb872b806d6dc4ee5a03fbd4",
+      "product": "sc_usd"
+    },
+    {
+      "new_root": "0x273245d9dc26df1e3692e8fad0ff201e4db4f03aa19627d177a08844845a72e5",
+      "product": "sonic_btc"
+    },
+    {
+      "new_root": "0x2cc276b20ccf054455bf8f6062b53d3ded365ea4ddf27d8cf51e0aadcd81746f",
+      "product": "sc_eth"
     }
   ],
-  "nonce": 54
+  "nonce": 29
 }
