@@ -13,7 +13,6 @@ use async_trait::async_trait;
 use eyre::{Result, eyre};
 use serde::Deserialize;
 
-// TODO this can be in charge of deriving big things like teller address, accountant, roles auth
 #[derive(Debug, Deserialize)]
 pub struct GlobalBlock {
     #[serde(default)]
@@ -40,13 +39,154 @@ pub struct GlobalBlock {
     timelock_admin: Option<Address>,
 }
 
+impl GlobalBlock {
+    async fn derive_roles_authority(
+        &self,
+        cache: &SharedCache,
+        vrm: &ViewRequestManager,
+    ) -> Result<bool> {
+        // Read authority of boring vault if deployed.
+        let boring_vault = cache.get_address("boring_vault").await;
+        let boring_vault = match boring_vault {
+            Some(addr) => addr,
+            None => return Ok(false),
+        };
+        if vrm.request_code(boring_vault).await?.len() > 0 {
+            // Query authority of boring vault.
+            let calldata = Bytes::from(Auth::authorityCall::new(()).abi_encode());
+            let result = vrm.request(boring_vault, calldata).await;
+            if let Ok(res) = result {
+                let data = Auth::authorityCall::abi_decode_returns(&res, true)?;
+                cache
+                    .set(
+                        "roles_authority",
+                        CacheValue::Address(data.authority),
+                        "global_block",
+                    )
+                    .await?;
+                return Ok(true);
+            }
+        }
+
+        Ok(false)
+    }
+
+    async fn derive_teller(&self, cache: &SharedCache, vrm: &ViewRequestManager) -> Result<bool> {
+        // Read hook of boring vault if deployed.
+        let boring_vault = cache.get_address("boring_vault").await;
+        let boring_vault = match boring_vault {
+            Some(addr) => addr,
+            None => return Ok(false),
+        };
+        if vrm.request_code(boring_vault).await?.len() > 0 {
+            // Query hook of boring vault.
+            let calldata = Bytes::from(BoringVault::hookCall::new(()).abi_encode());
+            let result = vrm.request(boring_vault, calldata).await;
+            if let Ok(res) = result {
+                let data = BoringVault::hookCall::abi_decode_returns(&res, true)?;
+                if data.hook != Address::ZERO {
+                    cache
+                        .set("teller", CacheValue::Address(data.hook), "global_block")
+                        .await?;
+                    return Ok(true);
+                }
+            }
+        }
+        Ok(false)
+    }
+
+    async fn derive_multisig(&self, cache: &SharedCache, vrm: &ViewRequestManager) -> Result<bool> {
+        // Read owner of roles authority if deployed.
+        let roles_authority = cache.get_address("roles_authority").await;
+        let roles_authority = match roles_authority {
+            Some(addr) => addr,
+            None => return Ok(false),
+        };
+        if vrm.request_code(roles_authority).await?.len() > 0 {
+            // Query owner of roles_authority.
+            let calldata = Bytes::from(Auth::ownerCall::new(()).abi_encode());
+            let result = vrm.request(roles_authority, calldata).await;
+            if let Ok(res) = result {
+                let data = Auth::ownerCall::abi_decode_returns(&res, true)?;
+                // Check if the owner is actually a multisig by trying to call nonce on it.
+                let calldata = Bytes::from(GnosisSafe::nonceCall::new(()).abi_encode());
+                let result = vrm.request(data.owner, calldata).await;
+                if result.is_ok() {
+                    // Call succeeded, so owner is a multisig.
+                    cache
+                        .set("multisig", CacheValue::Address(data.owner), "global_block")
+                        .await?;
+                    return Ok(true);
+                }
+            }
+        }
+        Ok(false)
+    }
+
+    async fn derive_timelock(&self, cache: &SharedCache, vrm: &ViewRequestManager) -> Result<bool> {
+        // Read owner of roles authority if deployed.
+        let roles_authority = cache.get_address("roles_authority").await;
+        let roles_authority = match roles_authority {
+            Some(addr) => addr,
+            None => return Ok(false),
+        };
+        if vrm.request_code(roles_authority).await?.len() > 0 {
+            // Query owner of roles_authority.
+            let calldata = Bytes::from(Auth::ownerCall::new(()).abi_encode());
+            let result = vrm.request(roles_authority, calldata).await;
+            if let Ok(res) = result {
+                let data = Auth::ownerCall::abi_decode_returns(&res, true)?;
+                // Check if the owner is actually a timelock by trying to call getMinDelay on it.
+                let calldata = Bytes::from(Timelock::getMinDelayCall::new(()).abi_encode());
+                let result = vrm.request(data.owner, calldata).await;
+                if result.is_ok() {
+                    // Call succeeded, so owner is a timelock.
+                    cache
+                        .set("timelock", CacheValue::Address(data.owner), "global_block")
+                        .await?;
+                    return Ok(true);
+                }
+            }
+        }
+        Ok(false)
+    }
+
+    async fn derive_accountant(
+        &self,
+        cache: &SharedCache,
+        vrm: &ViewRequestManager,
+    ) -> Result<bool> {
+        // Read accountant of teller if deployed.
+        let teller = cache.get_address("teller").await;
+        let teller = match teller {
+            Some(addr) => addr,
+            None => return Ok(false),
+        };
+        if vrm.request_code(teller).await?.len() > 0 {
+            // Query accountant of teller.
+            let calldata =
+                Bytes::from(TellerWithMultiAssetSupport::accountantCall::new(()).abi_encode());
+            let result = vrm.request(teller, calldata).await;
+            if let Ok(res) = result {
+                let data =
+                    TellerWithMultiAssetSupport::accountantCall::abi_decode_returns(&res, true)?;
+                cache
+                    .set("accountant", CacheValue::Address(data._0), "global_block")
+                    .await?;
+                return Ok(true);
+            }
+        }
+        Ok(false)
+    }
+}
+
 #[async_trait]
 impl BuildingBlock for GlobalBlock {
     async fn assemble(&self, _vrm: &ViewRequestManager) -> Result<Vec<Box<dyn Action>>> {
         Ok(vec![])
     }
 
-    async fn resolve_provides(&self, cache: &SharedCache) -> Result<()> {
+    async fn resolve_values(&self, cache: &SharedCache) -> Result<()> {
         if let Some(network_id) = self.network_id {
             cache
                 .set("network_id", CacheValue::U32(network_id), "global_block")
@@ -138,7 +278,7 @@ impl BuildingBlock for GlobalBlock {
         Ok(())
     }
 
-    async fn resolve_requires(&self, cache: &SharedCache) -> Result<Vec<(String, bool)>> {
+    async fn resolve_missing_values(&self, cache: &SharedCache) -> Result<Vec<(String, bool)>> {
         let mut requires = Vec::new();
         if self.deployer.is_none() && cache.get("deployer").await.is_none() {
             requires.push(("deployer".to_string(), false));
@@ -174,135 +314,19 @@ impl BuildingBlock for GlobalBlock {
         Ok(requires)
     }
 
-    async fn resolve_value(
+    async fn derive_value(
         &self,
         key: &str,
         cache: &SharedCache,
         vrm: &ViewRequestManager,
     ) -> Result<bool> {
         match key {
-            "roles_authority" => {
-                // Read authority of boring vault if deployed.
-                let boring_vault = cache.get_address("boring_vault").await;
-                let boring_vault = match boring_vault {
-                    Some(addr) => addr,
-                    None => return Ok(false),
-                };
-                if vrm.request_code(boring_vault).await?.len() > 0 {
-                    // Query authority of boring vault.
-                    let calldata = Bytes::from(Auth::authorityCall::new(()).abi_encode());
-                    let result = vrm.request(boring_vault, calldata).await;
-                    if let Ok(res) = result {
-                        let data = Auth::authorityCall::abi_decode_returns(&res, true)?;
-                        cache
-                            .set(
-                                "roles_authority",
-                                CacheValue::Address(data.authority),
-                                "global_block",
-                            )
-                            .await?;
-                        return Ok(true);
-                    }
-                }
-            }
-            "teller" => {
-                // Read hook of boring vault if deployed.
-                let boring_vault = cache.get_address("boring_vault").await;
-                let boring_vault = match boring_vault {
-                    Some(addr) => addr,
-                    None => return Ok(false),
-                };
-                if vrm.request_code(boring_vault).await?.len() > 0 {
-                    // Query hook of boring vault.
-                    let calldata = Bytes::from(BoringVault::hookCall::new(()).abi_encode());
-                    let result = vrm.request(boring_vault, calldata).await;
-                    if let Ok(res) = result {
-                        let data = BoringVault::hookCall::abi_decode_returns(&res, true)?;
-                        if data.hook != Address::ZERO {
-                            cache
-                                .set("teller", CacheValue::Address(data.hook), "global_block")
-                                .await?;
-                            return Ok(true);
-                        }
-                    }
-                }
-            }
-            "accountant" => {
-                // Read accountant of teller if deployed.
-                let teller = cache.get_address("teller").await;
-                let teller = match teller {
-                    Some(addr) => addr,
-                    None => return Ok(false),
-                };
-                if vrm.request_code(teller).await?.len() > 0 {
-                    // Query accountant of teller.
-                    let calldata = Bytes::from(
-                        TellerWithMultiAssetSupport::accountantCall::new(()).abi_encode(),
-                    );
-                    let result = vrm.request(teller, calldata).await;
-                    if let Ok(res) = result {
-                        let data = TellerWithMultiAssetSupport::accountantCall::abi_decode_returns(
-                            &res, true,
-                        )?;
-                        cache
-                            .set("accountant", CacheValue::Address(data._0), "global_block")
-                            .await?;
-                        return Ok(true);
-                    }
-                }
-            }
-            "multisig" => {
-                // Read owner of roles authority if deployed.
-                let roles_authority = cache.get_address("roles_authority").await;
-                let roles_authority = match roles_authority {
-                    Some(addr) => addr,
-                    None => return Ok(false),
-                };
-                if vrm.request_code(roles_authority).await?.len() > 0 {
-                    // Query owner of roles_authority.
-                    let calldata = Bytes::from(Auth::ownerCall::new(()).abi_encode());
-                    let result = vrm.request(roles_authority, calldata).await;
-                    if let Ok(res) = result {
-                        let data = Auth::ownerCall::abi_decode_returns(&res, true)?;
-                        // Check if the owner is actually a multisig by trying to call nonce on it.
-                        let calldata = Bytes::from(GnosisSafe::nonceCall::new(()).abi_encode());
-                        let result = vrm.request(data.owner, calldata).await;
-                        if result.is_ok() {
-                            // Call succeeded, so owner is a multisig.
-                            cache
-                                .set("multisig", CacheValue::Address(data.owner), "global_block")
-                                .await?;
-                            return Ok(true);
-                        }
-                    }
-                }
-            }
-            "timelock" => {
-                // Read owner of roles authority if deployed.
-                let roles_authority = cache.get_address("roles_authority").await;
-                let roles_authority = match roles_authority {
-                    Some(addr) => addr,
-                    None => return Ok(false),
-                };
-                if vrm.request_code(roles_authority).await?.len() > 0 {
-                    // Query owner of roles_authority.
-                    let calldata = Bytes::from(Auth::ownerCall::new(()).abi_encode());
-                    let result = vrm.request(roles_authority, calldata).await;
-                    if let Ok(res) = result {
-                        let data = Auth::ownerCall::abi_decode_returns(&res, true)?;
-                        // Check if the owner is actually a timelock by trying to call getMinDelay on it.
-                        let calldata = Bytes::from(Timelock::getMinDelayCall::new(()).abi_encode());
-                        let result = vrm.request(data.owner, calldata).await;
-                        if result.is_ok() {
-                            // Call succeeded, so owner is a timelock.
-                            cache
-                                .set("timelock", CacheValue::Address(data.owner), "global_block")
-                                .await?;
-                            return Ok(true);
-                        }
-                    }
-                }
-            }
+            "roles_authority" => self.derive_roles_authority(cache, vrm).await,
+            "teller" => self.derive_teller(cache, vrm).await,
+            "accountant" => self.derive_accountant(cache, vrm).await,
+            "multisig" => self.derive_multisig(cache, vrm).await,
+            "timelock" => self.derive_timelock(cache, vrm).await,
+
             _ => {
                 return Err(eyre!(
                     "global_block: Requested resolution of {}, which is not supported",
@@ -310,7 +334,6 @@ impl BuildingBlock for GlobalBlock {
                 ));
             }
         }
-        Ok(false) // Default implementation cannot resolve any values
     }
 
     async fn resolve_state(

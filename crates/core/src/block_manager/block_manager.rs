@@ -74,7 +74,7 @@ impl BlockManager {
     pub async fn propogate_shared_data(&mut self) -> Result<()> {
         // Step 1: Resolve all provided values
         for block in &self.blocks {
-            block.resolve_provides(&self.cache).await?;
+            block.resolve_values(&self.cache).await?;
         }
 
         // Step 2: Collect missing requirements and conflicts
@@ -82,7 +82,7 @@ impl BlockManager {
         let mut conflicts = Vec::new();
 
         for (i, block) in self.blocks.iter().enumerate() {
-            let block_missing = block.resolve_requires(&self.cache).await?;
+            let block_missing = block.resolve_missing_values(&self.cache).await?;
             for req in block_missing {
                 let (key, can_derive) = (req.0, req.1);
 
@@ -134,7 +134,7 @@ impl BlockManager {
             for (key, maybe_block_idx) in requirements_to_process {
                 if let Some(block_idx) = maybe_block_idx {
                     let block = &self.blocks[block_idx];
-                    if block.resolve_value(&key, &self.cache, &self.vrm).await? {
+                    if block.derive_value(&key, &self.cache, &self.vrm).await? {
                         // Value was resolved, remove from missing
                         missing_requirements.remove(&key);
                         made_progress = true;
