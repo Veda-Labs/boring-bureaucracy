@@ -1,0 +1,30 @@
+{
+  "network_id": 1,
+  "actions": [
+    {
+      "product": "royco_usd",
+      "new_roles": [
+        {
+          "action_type": "setUserRole",
+          "user": "0x9ec26125feCdE8CE5c67346dB2E20C9026225440",
+          "role_id": 32,
+          "enabled": true
+        },
+        {
+          "action_type": "setRoleCapability",
+          "role_id": 32,
+          "target_contract": "0x1234567890123456789012345678901234567890",
+          "function_signature": "setSomeValue(uint256)",
+          "enabled": true
+        },
+        {
+          "action_type": "setPublicCapability",
+          "target_contract": "0x1234567890123456789012345678901234567890",
+          "function_signature": "getPublicInfo()",
+          "enabled": false
+        }
+      ]
+    }
+  ],
+  "nonce": 1
+}

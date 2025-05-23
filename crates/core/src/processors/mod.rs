@@ -1,4 +1,5 @@
 pub mod asset_update;
+pub mod roles_update;
 pub mod root_update;
 pub mod solver_update;
 pub mod strategist_roles;
