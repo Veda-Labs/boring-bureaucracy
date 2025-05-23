@@ -157,7 +157,7 @@ impl BlockManager {
 
         // Assemble actions from all blocks
         for block in &self.blocks {
-            let block_actions = block.assemble(&self.vrm).await?;
+            let block_actions = block.assemble(&self.cache, &self.vrm).await?;
             actions.extend(block_actions);
         }
 

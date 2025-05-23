@@ -6,8 +6,18 @@ use eyre::Result;
 
 #[async_trait]
 pub trait BuildingBlock: Send + Sync {
-    async fn assemble(&self, vrm: &ViewRequestManager) -> Result<Vec<Box<dyn Action>>>;
-    async fn resolve_state(&mut self, cache: &SharedCache, vrm: &ViewRequestManager) -> Result<()>;
+    async fn assemble(
+        &self,
+        cache: &SharedCache,
+        vrm: &ViewRequestManager,
+    ) -> Result<Vec<Box<dyn Action>>>;
+    async fn resolve_state(
+        &mut self,
+        _cache: &SharedCache,
+        _vrm: &ViewRequestManager,
+    ) -> Result<()> {
+        Ok(())
+    }
 
     async fn resolve_values(&self, _cache: &SharedCache) -> Result<()> {
         Ok(()) // Default implementation does nothing

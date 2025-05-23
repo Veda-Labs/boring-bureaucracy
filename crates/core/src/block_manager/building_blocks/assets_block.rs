@@ -19,7 +19,11 @@ pub struct AssetsBlock {
 
 #[async_trait]
 impl BuildingBlock for AssetsBlock {
-    async fn assemble(&self, _vrm: &ViewRequestManager) -> Result<Vec<Box<dyn Action>>> {
+    async fn assemble(
+        &self,
+        _cache: &SharedCache,
+        _vrm: &ViewRequestManager,
+    ) -> Result<Vec<Box<dyn Action>>> {
         // TODO make RPC calls checking state of Teller/Accountant
         Ok(vec![])
     }

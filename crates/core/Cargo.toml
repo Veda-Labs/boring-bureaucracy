@@ -37,5 +37,6 @@ uuid = { version = "1.15.1", features = ["v4"] }
 async-trait = "0.1.88"
 
 into_trait = { path = "../into_trait" }
+building_block_derive = { path = "../building_block_derive" }
 
 log = "0.4.26"

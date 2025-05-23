@@ -991,6 +991,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "building_block_derive"
+version = "0.1.0"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 2.0.99",
+]
+
+[[package]]
 name = "bumpalo"
 version = "3.17.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1172,6 +1181,7 @@ version = "0.1.0"
 dependencies = [
  "alloy",
  "async-trait",
+ "building_block_derive",
  "dotenv",
  "eyre",
  "hex",

@@ -15,7 +15,11 @@ pub struct TellerBlock {
 
 #[async_trait]
 impl BuildingBlock for TellerBlock {
-    async fn assemble(&self, _vrm: &ViewRequestManager) -> Result<Vec<Box<dyn Action>>> {
+    async fn assemble(
+        &self,
+        _cache: &SharedCache,
+        _vrm: &ViewRequestManager,
+    ) -> Result<Vec<Box<dyn Action>>> {
         Ok(vec![])
     }
 
