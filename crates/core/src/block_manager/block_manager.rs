@@ -82,7 +82,7 @@ impl BlockManager {
         let mut conflicts = Vec::new();
 
         for (i, block) in self.blocks.iter().enumerate() {
-            let block_missing = block.resolve_missing_values(&self.cache).await?;
+            let block_missing = block.report_missing_values(&self.cache).await?;
             for req in block_missing {
                 let (key, can_derive) = (req.0, req.1);
 

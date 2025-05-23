@@ -13,7 +13,7 @@ pub trait BuildingBlock: Send + Sync {
         Ok(()) // Default implementation does nothing
     }
 
-    async fn resolve_missing_values(&self, _cache: &SharedCache) -> Result<Vec<(String, bool)>> {
+    async fn report_missing_values(&self, _cache: &SharedCache) -> Result<Vec<(String, bool)>> {
         Ok(Vec::new()) // Default implementation returns empty vector
     }
 

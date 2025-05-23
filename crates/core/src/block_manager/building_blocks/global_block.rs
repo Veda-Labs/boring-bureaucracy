@@ -278,7 +278,7 @@ impl BuildingBlock for GlobalBlock {
         Ok(())
     }
 
-    async fn resolve_missing_values(&self, cache: &SharedCache) -> Result<Vec<(String, bool)>> {
+    async fn report_missing_values(&self, cache: &SharedCache) -> Result<Vec<(String, bool)>> {
         let mut requires = Vec::new();
         if self.deployer.is_none() && cache.get("deployer").await.is_none() {
             requires.push(("deployer".to_string(), false));
