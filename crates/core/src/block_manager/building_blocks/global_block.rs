@@ -9,9 +9,8 @@ use crate::utils::address_or_contract_name::{AddressOrContractName, derive_contr
 use crate::utils::view_request_manager::ViewRequestManager;
 use alloy::primitives::{Address, Bytes};
 use alloy::sol_types::SolCall;
-use async_trait::async_trait;
 use building_block_derive::BuildingBlockCache;
-use eyre::{Result, eyre};
+use eyre::Result;
 use serde::Deserialize;
 
 #[derive(BuildingBlockCache, Debug, Deserialize)]

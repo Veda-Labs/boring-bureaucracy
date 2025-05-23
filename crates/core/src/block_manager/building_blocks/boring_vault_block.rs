@@ -1,17 +1,16 @@
 use super::building_block::BuildingBlock;
 // use crate::actions::sender_type::SenderType;
-use crate::actions::{action::Action, deploy_contract_action::DeployContract};
-use crate::bindings::{auth::Auth, boring_vault::BoringVault};
+use crate::actions::action::Action;
+// use crate::actions::deploy_contract_action::DeployContract;
+use crate::bindings::boring_vault::BoringVault;
 use crate::block_manager::shared_cache::{CacheValue, SharedCache};
 // use crate::bytecode::BORING_VAULT_BYTECODE;
 use crate::utils::address_or_contract_name::{AddressOrContractName, derive_contract_address};
 use crate::utils::view_request_manager::ViewRequestManager;
-use alloy::primitives::{Address, Bytes, U256};
+use alloy::primitives::{Address, Bytes};
 use alloy::sol_types::SolCall;
-use async_trait::async_trait;
 use building_block_derive::BuildingBlockCache;
-use eyre::{Result, eyre};
-use log::warn;
+use eyre::Result;
 use serde::Deserialize;
 
 #[derive(BuildingBlockCache, Debug, Deserialize)]
