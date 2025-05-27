@@ -17,6 +17,7 @@ use alloy::providers::Provider;
 use alloy::providers::ProviderBuilder;
 
 use eyre::{Result, eyre};
+use log::error;
 use serde_json::Value;
 use std::collections::HashMap;
 
@@ -53,6 +54,17 @@ impl BlockManager {
     }
 
     pub fn create_blocks_from_json_value(&mut self, value: Value) -> Result<()> {
+        // Check if the first element is a Global block
+        if let Value::Array(ref arr) = value {
+            if let Some(first) = arr.first() {
+                if let Value::Object(obj) = first {
+                    if !obj.contains_key("Global") {
+                        return Err(eyre::eyre!("First block must be a Global block"));
+                    }
+                }
+            }
+        }
+
         let building_blocks: Vec<BuildingBlocks> = serde_json::from_value(value)?;
         self.blocks = building_blocks
             .into_iter()
@@ -62,7 +74,21 @@ impl BlockManager {
     }
 
     pub fn create_blocks_from_json_str(&mut self, json_str: &str) -> Result<()> {
-        let building_blocks: Vec<BuildingBlocks> = serde_json::from_str(json_str)?;
+        // Parse the JSON string to do the validation
+        let value: Value = serde_json::from_str(json_str)?;
+
+        // Check if the first element is a Global block
+        if let Value::Array(ref arr) = value {
+            if let Some(first) = arr.first() {
+                if let Value::Object(obj) = first {
+                    if !obj.contains_key("Global") {
+                        return Err(eyre::eyre!("First block must be a Global block"));
+                    }
+                }
+            }
+        }
+
+        let building_blocks: Vec<BuildingBlocks> = serde_json::from_value(value)?;
         self.blocks = building_blocks
             .into_iter()
             .map(|b| b.into_trait_object())
@@ -70,7 +96,6 @@ impl BlockManager {
         Ok(())
     }
 
-    // TODO this should do the global block first, THEN all the other ones so that deployer is defined.
     pub async fn propogate_shared_data(&mut self) -> Result<()> {
         // Step 1: Resolve all provided values
         for block in &self.blocks {
@@ -144,6 +169,7 @@ impl BlockManager {
 
             if !made_progress && !missing_requirements.is_empty() {
                 // We tried but could not resolve everything
+                error!("Failed to resolve missing requirements!");
                 break;
             }
         }

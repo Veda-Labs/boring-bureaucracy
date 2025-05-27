@@ -1,0 +1,22 @@
+[
+  {
+    "Global": {
+      "boring_vault": "0xf0bb20865277aBd641a307eCe5Ee04E79073416C",
+      "deployer": "0x5F2F11ad8656439d5C14d9B351f8b09cDaC2A02d",
+      "network_id": 1,
+      "roles_authority": "0x1111111111111111111111111111111111111111",
+      "teller": "0x2222222222222222222222222222222222222222",
+      "accountant": "0x3333333333333333333333333333333333333333",
+      "manager": "0x4444444444444444444444444444444444444444",
+      "multisig": "0x5555555555555555555555555555555555555555",
+      "timelock": "0x6666666666666666666666666666666666666666"
+    }
+  },
+  {
+    "BoringVault": {
+      "boring_vault_name": "Test Vault",
+      "boring_vault_symbol": "TV",
+      "boring_vault_decimals": 18
+    }
+  }
+]

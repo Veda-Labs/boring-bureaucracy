@@ -6,6 +6,9 @@ use eyre::Result;
 
 #[async_trait]
 pub trait BuildingBlock: Send + Sync {
+    fn is_global_block(&self) -> bool {
+        false
+    }
     async fn assemble(
         &self,
         cache: &SharedCache,

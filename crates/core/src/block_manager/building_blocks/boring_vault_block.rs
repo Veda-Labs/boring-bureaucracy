@@ -126,7 +126,7 @@ impl BoringVaultBlock {
                 cache
                     .set(
                         "boring_vault_decimals",
-                        CacheValue::String(data._0.to_string()),
+                        CacheValue::U8(data._0),
                         "boring_vault_block",
                     )
                     .await?;
@@ -224,8 +224,12 @@ mod tests {
     async fn test_scenario_a_full_config() {
         let json = json!([
             {
+                "Global": {
+                    "deployer": "0x5F2F11ad8656439d5C14d9B351f8b09cDaC2A02d"
+                }
+            },
+            {
                 "BoringVault": {
-                    "deployer": "0x5F2F11ad8656439d5C14d9B351f8b09cDaC2A02d",
                     "boring_vault": "0xf0bb20865277aBd641a307eCe5Ee04E79073416C",
                     "roles_authority": "0x1111111111111111111111111111111111111111",
                     "boring_vault_name": "Test Vault",
@@ -244,31 +248,31 @@ mod tests {
 
         let cache = manager.cache;
         assert_eq!(
-            cache.get_immediate("deployer").await.unwrap(),
+            cache.get("deployer").await.unwrap(),
             CacheValue::Address(address!("0x5F2F11ad8656439d5C14d9B351f8b09cDaC2A02d"))
         );
         assert_eq!(
-            cache.get_immediate("boring_vault").await.unwrap(),
+            cache.get("boring_vault").await.unwrap(),
             CacheValue::Address(address!("0xf0bb20865277aBd641a307eCe5Ee04E79073416C"))
         );
         assert_eq!(
-            cache.get_immediate("roles_authority").await.unwrap(),
+            cache.get("roles_authority").await.unwrap(),
             CacheValue::Address(address!("0x1111111111111111111111111111111111111111"))
         );
         assert_eq!(
-            cache.get_immediate("boring_vault_decimals").await.unwrap(),
+            cache.get("boring_vault_decimals").await.unwrap(),
             CacheValue::U8(18)
         );
         assert_eq!(
-            cache.get_immediate("hook").await.unwrap(),
+            cache.get("hook").await.unwrap(),
             CacheValue::Address(address!("0x2222222222222222222222222222222222222222"))
         );
         assert_eq!(
-            cache.get_immediate("manager").await.unwrap(),
+            cache.get("manager").await.unwrap(),
             CacheValue::Address(address!("0x3333333333333333333333333333333333333333"))
         );
         assert_eq!(
-            cache.get_immediate("teller").await.unwrap(),
+            cache.get("teller").await.unwrap(),
             CacheValue::Address(address!("0x4444444444444444444444444444444444444444"))
         );
     }
@@ -276,6 +280,11 @@ mod tests {
     #[tokio::test]
     async fn test_scenario_b_minimal_config() {
         let json = json!([
+            {
+                "Global": {
+                    "deployer": "0x5F2F11ad8656439d5C14d9B351f8b09cDaC2A02d"
+                }
+            },
             {
                 "BoringVault": {
                     "deployer": "0x5F2F11ad8656439d5C14d9B351f8b09cDaC2A02d",
@@ -290,26 +299,29 @@ mod tests {
 
         let cache = manager.cache;
         assert_eq!(
-            cache.get_immediate("deployer").await.unwrap(),
+            cache.get("deployer").await.unwrap(),
             CacheValue::Address(address!("0x5F2F11ad8656439d5C14d9B351f8b09cDaC2A02d"))
         );
         assert_eq!(
-            cache.get_immediate("boring_vault").await.unwrap(),
+            cache.get("boring_vault").await.unwrap(),
             CacheValue::Address(address!("0xf0bb20865277aBd641a307eCe5Ee04E79073416C"))
+        );
+        assert_eq!(
+            cache.get("roles_authority").await.unwrap(),
+            CacheValue::Address(address!("0x485Bde66Bb668a51f2372E34e45B1c6226798122"))
+        );
+        assert_eq!(
+            cache.get("teller").await.unwrap(),
+            CacheValue::Address(address!("0x9AA79C84b79816ab920bBcE20f8f74557B514734"))
         );
 
         // Verify other values are not set
         assert_eq!(
-            cache.get_immediate("roles_authority").await.unwrap(),
-            CacheValue::Address(address!("0x485Bde66Bb668a51f2372E34e45B1c6226798122"))
-        );
-        assert_eq!(
-            cache.get_immediate("boring_vault_decimals").await.unwrap(),
+            cache.get("boring_vault_decimals").await.unwrap(),
             CacheValue::U8(18)
         );
-        assert!(cache.get_immediate("hook").await.is_err());
-        assert!(cache.get_immediate("manager").await.is_err());
-        assert!(cache.get_immediate("teller").await.is_err());
+        assert!(cache.get("hook").await.is_none());
+        assert!(cache.get("manager").await.is_none());
     }
 
     #[tokio::test]
@@ -338,7 +350,7 @@ mod tests {
         let cache = manager.cache;
         // Verify values from Global block
         assert_eq!(
-            cache.get_immediate("deployer").await.unwrap(),
+            cache.get("deployer").await.unwrap(),
             CacheValue::Address(address!("0x5F2F11ad8656439d5C14d9B351f8b09cDaC2A02d"))
         );
         let expected_boring_vault = derive_contract_address(
@@ -346,17 +358,17 @@ mod tests {
             address!("0x5F2F11ad8656439d5C14d9B351f8b09cDaC2A02d"),
         );
         assert_eq!(
-            cache.get_immediate("boring_vault").await.unwrap(),
+            cache.get("boring_vault").await.unwrap(),
             CacheValue::Address(expected_boring_vault)
         );
         assert_eq!(
-            cache.get_immediate("roles_authority").await.unwrap(),
+            cache.get("roles_authority").await.unwrap(),
             CacheValue::Address(address!("0x4444444444444444444444444444444444444444"))
         );
 
         // Verify values from BoringVault block
         assert_eq!(
-            cache.get_immediate("boring_vault_decimals").await.unwrap(),
+            cache.get("boring_vault_decimals").await.unwrap(),
             CacheValue::U8(18)
         );
     }

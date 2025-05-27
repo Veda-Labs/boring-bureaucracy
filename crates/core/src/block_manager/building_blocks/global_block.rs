@@ -192,153 +192,150 @@ impl GlobalBlock {
     }
 }
 
-// #[cfg(test)]
-// mod tests {
-//     use super::*;
-//     use crate::block_manager::block_manager::BlockManager;
-//     use alloy::primitives::address;
-//     use serde_json::json;
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::block_manager::block_manager::BlockManager;
+    use alloy::primitives::address;
+    use serde_json::json;
 
-//     const RPC_URL: &str = "https://eth.llamarpc.com";
+    const RPC_URL: &str = "https://eth.llamarpc.com";
 
-//     async fn setup_block_manager(json: serde_json::Value) -> BlockManager {
-//         let mut manager = BlockManager::new(RPC_URL.to_string()).await.unwrap();
-//         manager.create_blocks_from_json_value(json).unwrap();
-//         manager
-//     }
+    async fn setup_block_manager(json: serde_json::Value) -> BlockManager {
+        let mut manager = BlockManager::new(RPC_URL.to_string()).await.unwrap();
+        manager.create_blocks_from_json_value(json).unwrap();
+        manager
+    }
 
-//     #[tokio::test]
-//     async fn test_scenario_a_minimal_config() {
-//         let json = json!(
-//             [
-//                 {
-//                     "Global": {
-//                         "boring_vault": "0xf0bb20865277aBd641a307eCe5Ee04E79073416C",
-//                         "deployer": "0x5F2F11ad8656439d5C14d9B351f8b09cDaC2A02d",
-//                         "network_id": 1,
-//                     }
-//                 }
-//             ]
-//         );
+    #[tokio::test]
+    async fn test_scenario_a_minimal_config() {
+        let json = json!(
+            [
+                {
+                    "Global": {
+                        "boring_vault": "0xf0bb20865277aBd641a307eCe5Ee04E79073416C",
+                        "deployer": "0x5F2F11ad8656439d5C14d9B351f8b09cDaC2A02d",
+                        "network_id": 1,
+                    }
+                }
+            ]
+        );
 
-//         let mut manager = setup_block_manager(json).await;
-//         manager.propogate_shared_data().await.unwrap();
+        let mut manager = setup_block_manager(json).await;
+        manager.propogate_shared_data().await.unwrap();
 
-//         // Verify cache values
-//         let cache = manager.cache;
-//         assert_eq!(
-//             cache.get("deployer", "test").await.unwrap(),
-//             CacheValue::Address(address!("0x5F2F11ad8656439d5C14d9B351f8b09cDaC2A02d"))
-//         );
-//         assert_eq!(
-//             cache.get("boring_vault", "test").await.unwrap(),
-//             CacheValue::Address(address!("0xf0bb20865277aBd641a307eCe5Ee04E79073416C"))
-//         );
-//         assert_eq!(
-//             cache.get("network_id", "test").await.unwrap(),
-//             CacheValue::U32(1)
-//         );
-//         assert_eq!(
-//             cache.get("roles_authority", "test").await.unwrap(),
-//             CacheValue::Address(address!("0x485Bde66Bb668a51f2372E34e45B1c6226798122"))
-//         );
-//         assert_eq!(
-//             cache.get("teller", "test").await.unwrap(),
-//             CacheValue::Address(address!("0x9AA79C84b79816ab920bBcE20f8f74557B514734"))
-//         );
-//         assert_eq!(
-//             cache.get("accountant", "test").await.unwrap(),
-//             CacheValue::Address(address!("0x0d05D94a5F1E76C18fbeB7A13d17C8a314088198"))
-//         );
-//         assert_eq!(
-//             cache.get("multisig", "test").await.unwrap(),
-//             CacheValue::Address(address!("0xCEA8039076E35a825854c5C2f85659430b06ec96"))
-//         );
-//         // Verify manager and timelock are not set
-//         assert!(cache.get_immediate("manager").await.is_err());
-//         assert!(cache.get_immediate("timelock").await.is_err());
-//     }
+        // Verify cache values
+        let cache = manager.cache;
+        assert_eq!(
+            cache.get("deployer").await.unwrap(),
+            CacheValue::Address(address!("0x5F2F11ad8656439d5C14d9B351f8b09cDaC2A02d"))
+        );
+        assert_eq!(
+            cache.get("boring_vault").await.unwrap(),
+            CacheValue::Address(address!("0xf0bb20865277aBd641a307eCe5Ee04E79073416C"))
+        );
+        assert_eq!(cache.get("network_id").await.unwrap(), CacheValue::U32(1));
+        assert_eq!(
+            cache.get("roles_authority").await.unwrap(),
+            CacheValue::Address(address!("0x485Bde66Bb668a51f2372E34e45B1c6226798122"))
+        );
+        assert_eq!(
+            cache.get("teller").await.unwrap(),
+            CacheValue::Address(address!("0x9AA79C84b79816ab920bBcE20f8f74557B514734"))
+        );
+        assert_eq!(
+            cache.get("accountant").await.unwrap(),
+            CacheValue::Address(address!("0x0d05D94a5F1E76C18fbeB7A13d17C8a314088198"))
+        );
+        assert_eq!(
+            cache.get("multisig").await.unwrap(),
+            CacheValue::Address(address!("0xCEA8039076E35a825854c5C2f85659430b06ec96"))
+        );
+        // Verify manager and timelock are not set
+        assert!(cache.get("manager").await.is_none());
+        assert!(cache.get("timelock").await.is_none());
+    }
 
-//     #[tokio::test]
-//     async fn test_scenario_b_full_config() {
-//         let json = json!(
-//             [
-//                 {
-//                     "Global": {
-//                         "boring_vault": "0xf0bb20865277aBd641a307eCe5Ee04E79073416C",
-//                         "deployer": "0x5F2F11ad8656439d5C14d9B351f8b09cDaC2A02d",
-//                         "network_id": 1,
-//                         "roles_authority": "Test Roles Authority V0.0",
-//                         "teller": "0x2222222222222222222222222222222222222222",
-//                         "accountant": "0x3333333333333333333333333333333333333333",
-//                         "manager": "0x4444444444444444444444444444444444444444",
-//                         "multisig": "0x5555555555555555555555555555555555555555",
-//                         "timelock": "0x6666666666666666666666666666666666666666"
-//                     }
-//                 }
-//             ]
-//         );
+    #[tokio::test]
+    async fn test_scenario_b_full_config() {
+        let json = json!(
+            [
+                {
+                    "Global": {
+                        "boring_vault": "0xf0bb20865277aBd641a307eCe5Ee04E79073416C",
+                        "deployer": "0x5F2F11ad8656439d5C14d9B351f8b09cDaC2A02d",
+                        "network_id": 1,
+                        "roles_authority": "Test Roles Authority V0.0",
+                        "teller": "0x2222222222222222222222222222222222222222",
+                        "accountant": "0x3333333333333333333333333333333333333333",
+                        "manager": "0x4444444444444444444444444444444444444444",
+                        "multisig": "0x5555555555555555555555555555555555555555",
+                        "timelock": "0x6666666666666666666666666666666666666666"
+                    }
+                }
+            ]
+        );
 
-//         let mut manager = setup_block_manager(json).await;
-//         manager.propogate_shared_data().await.unwrap();
+        let mut manager = setup_block_manager(json).await;
+        manager.propogate_shared_data().await.unwrap();
 
-//         // Verify all cache values
-//         let cache = manager.cache;
-//         assert_eq!(
-//             cache.get("boring_vault", "test").await.unwrap(),
-//             CacheValue::Address(address!("0xf0bb20865277aBd641a307eCe5Ee04E79073416C"))
-//         );
-//         let expected_roles_authority = derive_contract_address(
-//             "Test Roles Authority V0.0",
-//             address!("0x5F2F11ad8656439d5C14d9B351f8b09cDaC2A02d"),
-//         );
-//         assert_eq!(
-//             cache.get("roles_authority", "test").await.unwrap(),
-//             CacheValue::Address(expected_roles_authority)
-//         );
-//         // ... verify other addresses
-//     }
+        // Verify all cache values
+        let cache = manager.cache;
+        assert_eq!(
+            cache.get("boring_vault").await.unwrap(),
+            CacheValue::Address(address!("0xf0bb20865277aBd641a307eCe5Ee04E79073416C"))
+        );
+        let expected_roles_authority = derive_contract_address(
+            "Test Roles Authority V0.0",
+            address!("0x5F2F11ad8656439d5C14d9B351f8b09cDaC2A02d"),
+        );
+        assert_eq!(
+            cache.get("roles_authority").await.unwrap(),
+            CacheValue::Address(expected_roles_authority)
+        );
+        // ... verify other addresses
+    }
 
-//     #[tokio::test]
-//     async fn test_scenario_c_conflicting_boring_vaults() {
-//         let json = json!(
-//             [
-//                 {
-//                     "Global": {
-//                         "boring_vault": "0xf0bb20865277aBd641a307eCe5Ee04E79073416C",
-//                         "deployer": "0x5F2F11ad8656439d5C14d9B351f8b09cDaC2A02d",
-//                         "network_id": 1,
-//                         "roles_authority": "0x1111111111111111111111111111111111111111",
-//                         "teller": "0x2222222222222222222222222222222222222222",
-//                         "accountant": "0x3333333333333333333333333333333333333333",
-//                         "manager": "0x4444444444444444444444444444444444444444",
-//                         "multisig": "0x5555555555555555555555555555555555555555",
-//                         "timelock": "0x6666666666666666666666666666666666666666"
-//                     }
-//                 },
-//                 {
-//                     "Global": {
-//                         "boring_vault": "0xAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
-//                         "deployer": "0x5F2F11ad8656439d5C14d9B351f8b09cDaC2A02d",
-//                         "network_id": 1,
-//                         "roles_authority": "0x1111111111111111111111111111111111111111",
-//                         "teller": "0x2222222222222222222222222222222222222222",
-//                         "accountant": "0x3333333333333333333333333333333333333333",
-//                         "manager": "0x4444444444444444444444444444444444444444",
-//                         "multisig": "0x5555555555555555555555555555555555555555",
-//                         "timelock": "0x6666666666666666666666666666666666666666"
-//                     }
-//                 }
-//             ]
-//         );
+    #[tokio::test]
+    async fn test_scenario_c_conflicting_boring_vaults() {
+        let json = json!(
+            [
+                {
+                    "Global": {
+                        "boring_vault": "0xf0bb20865277aBd641a307eCe5Ee04E79073416C",
+                        "deployer": "0x5F2F11ad8656439d5C14d9B351f8b09cDaC2A02d",
+                        "network_id": 1,
+                        "roles_authority": "0x1111111111111111111111111111111111111111",
+                        "teller": "0x2222222222222222222222222222222222222222",
+                        "accountant": "0x3333333333333333333333333333333333333333",
+                        "manager": "0x4444444444444444444444444444444444444444",
+                        "multisig": "0x5555555555555555555555555555555555555555",
+                        "timelock": "0x6666666666666666666666666666666666666666"
+                    }
+                },
+                {
+                    "Global": {
+                        "boring_vault": "0xAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+                        "deployer": "0x5F2F11ad8656439d5C14d9B351f8b09cDaC2A02d",
+                        "network_id": 1,
+                        "roles_authority": "0x1111111111111111111111111111111111111111",
+                        "teller": "0x2222222222222222222222222222222222222222",
+                        "accountant": "0x3333333333333333333333333333333333333333",
+                        "manager": "0x4444444444444444444444444444444444444444",
+                        "multisig": "0x5555555555555555555555555555555555555555",
+                        "timelock": "0x6666666666666666666666666666666666666666"
+                    }
+                }
+            ]
+        );
 
-//         let mut manager = setup_block_manager(json).await;
-//         let result = manager.propogate_shared_data().await;
+        let mut manager = setup_block_manager(json).await;
+        let result = manager.propogate_shared_data().await;
 
-//         // This should fail because of conflicting boring_vault addresses
-//         assert!(result.is_err());
-//         let err = result.unwrap_err();
-//         println!("Error: {}", err);
-//         assert!(err.to_string().contains("Cache value mismatch"));
-//     }
-// }
+        // This should fail because of conflicting boring_vault addresses
+        assert!(result.is_err());
+        let err = result.unwrap_err();
+        println!("Error: {}", err);
+        assert!(err.to_string().contains("Cache value conflict"));
+    }
+}

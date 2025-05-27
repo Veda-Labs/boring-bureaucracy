@@ -95,6 +95,10 @@ pub fn derive_building_block_cache(input: TokenStream) -> TokenStream {
                                         cache.set(#field_name_str, CacheValue::Address(*addr), #block_name).await?;
                                     },
                                     AddressOrContractName::ContractName(name) => {
+                                        // First cache the contract name
+                                        cache.set(&format!("{}_contract_name", #field_name_str), CacheValue::String(name.clone()), #block_name).await?;
+                                                                        
+                                        // Then derive and cache the address if possible
                                         if let Some(deployer) = self.deployer {
                                             let addr = derive_contract_address(name, deployer);
                                             cache.set(#field_name_str, CacheValue::Address(addr), #block_name).await?;
