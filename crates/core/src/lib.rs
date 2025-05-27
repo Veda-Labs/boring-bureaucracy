@@ -4,7 +4,7 @@ pub mod processors;
 pub mod types;
 pub mod utils;
 use crate::{
-    actions::{multisend_utils::create_multisend_data, timelock_action::TimelockAction, set_merkle_root_action::SetMerkleRoot},
+    actions::{multisend_utils::create_multisend_data, timelock_action::TimelockAction},
     bindings::{
         manager::ManagerWithMerkleVerification, multisend::MutliSendCallOnly, multisig::GnosisSafe,
         timelock::Timelock,
@@ -12,7 +12,7 @@ use crate::{
     processors::{
         asset_update::process_asset_updates, root_update::process_merkle_root_update,
         solver_update::process_solver_update, update_fees::process_fee_updates,
-        strategist_roles::process_strategist_roles_update,
+        strategist_roles::process_strategist_roles_update, roles_update::process_roles_updates,
     },
     types::transaction::Transaction,
     utils::simulate::generate_safe_hash_and_return_params,
@@ -145,6 +145,17 @@ pub async fn generate_admin_actions_from_json(
                 product,
                 network_id,
                 strategist_update_data_val, // Pass the original Value
+            )?;
+        }
+
+        // Process new roles updates
+        if let Some(new_roles) = action.get("new_roles") {
+            process_roles_updates(
+                &mut action_sub_set,
+                &cw,
+                product,
+                network_id,
+                new_roles,
             )?;
         }
     }

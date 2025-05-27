@@ -3,3 +3,5 @@
 .env
 /input/queued
 /input/history
+CLAUDE.md
+/ds
