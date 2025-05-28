@@ -42,6 +42,10 @@ pub struct GlobalBlock {
     executor: Option<Address>,
     #[serde(default)]
     timelock_admin: Option<Address>,
+    #[serde(default)]
+    bundler: Option<Address>,
+    #[serde(default)]
+    dev_address: Option<Address>,
 }
 
 impl GlobalBlock {

@@ -9,5 +9,7 @@ sol! {
         function symbol() external view returns(string);
         function decimals() external view returns(uint8);
         function hook() external view returns(address hook);
+        function manage(address target, bytes calldata data, uint256 value) external;
+        function manage(address[] calldata targets, bytes[] calldata data, uint256[] calldata values) external;
     }
 }

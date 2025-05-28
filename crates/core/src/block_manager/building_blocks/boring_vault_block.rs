@@ -1,14 +1,18 @@
+use super::block_utils::*;
 use super::building_block::BuildingBlock;
-// use crate::actions::sender_type::SenderType;
 use crate::actions::action::Action;
-// use crate::actions::deploy_contract_action::DeployContract;
+use crate::actions::sender_type::SenderType;
+use crate::actions::{
+    deploy_contract_action::DeployContract, set_role_capability_action::SetRoleCapabilityAction,
+};
 use crate::bindings::boring_vault::BoringVault;
 use crate::block_manager::shared_cache::{CacheValue, SharedCache};
-// use crate::bytecode::BORING_VAULT_BYTECODE;
+use crate::bytecode::BORING_VAULT_BYTECODE;
 use crate::utils::address_or_contract_name::{AddressOrContractName, derive_contract_address};
 use crate::utils::view_request_manager::ViewRequestManager;
-use alloy::primitives::{Address, Bytes};
+use alloy::primitives::{Address, Bytes, U256, aliases::B32};
 use alloy::sol_types::SolCall;
+use alloy::sol_types::SolConstructor;
 use building_block_derive::BuildingBlockCache;
 use eyre::Result;
 use serde::Deserialize;
@@ -42,6 +46,7 @@ pub struct BoringVaultBlock {
 
 // TODO how do we verify after deployment???
 // TODO could probably use util funcitons for shared logic between building blocks
+// TODO create roles authority building block
 
 impl BoringVaultBlock {
     async fn derive_boring_vault_name(
@@ -139,10 +144,10 @@ impl BoringVaultBlock {
 
     async fn _assemble(
         &self,
-        _cache: &SharedCache,
-        _vrm: &ViewRequestManager,
+        cache: &SharedCache,
+        vrm: &ViewRequestManager,
     ) -> Result<Vec<Box<dyn Action>>> {
-        // let mut actions: Vec<Box<dyn Action>> = Vec::new();
+        let mut actions: Vec<Box<dyn Action>> = Vec::new();
         // TODO make RPC calls checking if boring vault is deployed, if not add deploy action
         // then we would error here if the name, symbol, and decimal were not defined
         // Check if roles auth deployed
@@ -150,51 +155,63 @@ impl BoringVaultBlock {
         // if no, configure all roles
 
         // Check if boring vault is deployed.
-        // let boring_vault = cache.get_address("boring_vault").await.unwrap();
-        // let is_deployed = vrm.request_code(boring_vault).await?.len() > 0;
-        // if !is_deployed {
-        //     // Boring vault is not deployed
-        //     if self.boring_vault_name.is_none()
-        //         || self.boring_vault_symbol.is_none()
-        //         || self.boring_vault_decimals.is_none()
-        //     {
-        //         return Err(eyre!(
-        //             "Deploying boring vault but missing name, symbol, or decimals"
-        //         ));
-        //     }
-        //     let name = match self.boring_vault.as_ref().unwrap() {
-        //         AddressOrContractName::ContractName(name) => name,
-        //         AddressOrContractName::Address(_) => {
-        //             return Err(eyre!(
-        //                 "BoringVaultBlock: Deploying boring vault but no name provided"
-        //             ));
-        //         }
-        //     };
+        let boring_vault = cache.get_address("boring_vault").await.unwrap();
+        let is_deployed = vrm.request_code(boring_vault).await?.len() > 0;
+        if !is_deployed {
+            // Boring vault is not deployed, get deployment args.
+            let contract_name = cache
+                .get_string("boring_vault_contract_name")
+                .await
+                .unwrap();
+            let name = cache.get_string("boring_vault_name").await.unwrap();
+            let symbol = cache.get_string("boring_vault_symbol").await.unwrap();
+            let decimals = cache.get_u8("boring_vault_decimals").await.unwrap();
+            let owner = match cache.get_address("bundler").await {
+                Some(addr) => addr,
+                None => cache.get_address("dev_address").await.unwrap(),
+            };
 
-        //     let constructor_args = Bytes::from(
-        //         BoringVault::constructorCall::new((
-        //             Address::ZERO,
-        //             self.boring_vault_name.as_ref().unwrap().clone(),
-        //             self.boring_vault_symbol.as_ref().unwrap().clone(),
-        //             self.boring_vault_decimals.unwrap(),
-        //         ))
-        //         .abi_encode(),
-        //     );
+            let constructor_args = Bytes::from(
+                BoringVault::constructorCall::new((owner, name, symbol, decimals)).abi_encode(),
+            );
 
-        //     let deploy_borign_vault_action = DeployContract::new(
-        //         self.deployer.unwrap(),
-        //         name.to_string(),
-        //         BORING_VAULT_BYTECODE,
-        //         constructor_args,
-        //         U256::ZERO,
-        //         0,
-        //         SenderType::EOA(self.executor.unwrap()),
-        //     );
+            let deploy_boring_vault_action = DeployContract::new(
+                cache.get_address("deployer").await.unwrap(),
+                contract_name.to_string(),
+                BORING_VAULT_BYTECODE,
+                constructor_args,
+                U256::ZERO,
+                0,
+                SenderType::EOA(self.executor.unwrap()),
+            );
 
-        //     actions.push(Box::new(deploy_borign_vault_action));
-        // }
+            actions.push(Box::new(deploy_boring_vault_action));
+        }
+
         // TODO now add all roles auth actions
         // Check if role is configured properly, if not add it
+        // Setup roles to manage vault.
+        let roles_authority = cache.get_address("roles_authority").await.unwrap();
+        if does_role_have_capability(
+            roles_authority,
+            3,
+            boring_vault,
+            B32::from(BoringVault::manage_0Call::SELECTOR),
+            vrm,
+        )
+        .await?
+        {
+            let action = SetRoleCapabilityAction::new_action(
+                roles_authority,
+                3,
+                boring_vault,
+                BoringVault::manage_0Call::SIGNATURE.to_string(),
+                true,
+                1,
+                SenderType::EOA(Address::ZERO),
+            );
+            actions.push(Box::new(action));
+        }
 
         // Then if hook is Some, set it
 

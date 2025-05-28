@@ -67,6 +67,28 @@ impl SharedCache {
         }
     }
 
+    pub async fn get_string(&self, key: &str) -> Option<String> {
+        if let Some(value) = self.get(key).await {
+            match value {
+                CacheValue::String(addr) => Some(addr),
+                _ => None,
+            }
+        } else {
+            None
+        }
+    }
+
+    pub async fn get_u8(&self, key: &str) -> Option<u8> {
+        if let Some(value) = self.get(key).await {
+            match value {
+                CacheValue::U8(addr) => Some(addr),
+                _ => None,
+            }
+        } else {
+            None
+        }
+    }
+
     // Set a value with origin tracking and conflict detection
     pub async fn set(&self, key: &str, value: CacheValue, origin: &str) -> Result<()> {
         let mut storage = self.storage.write().await;
