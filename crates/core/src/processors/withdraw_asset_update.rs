@@ -76,12 +76,36 @@ pub async fn process_queue_asset_updates(
     let current_withdraw_data = queue.withdrawAssets(asset_addr).call().await?;
 
     // Check if withdraw settings need updating
-    let new_allow_withdraws = asset_data["allow_withdraws"]
+    let allow_withdraws = asset_data["allow_withdraws"]
         .as_bool()
         .ok_or_else(|| eyre!("allow_withdraws must be a boolean"))?;
+    let seconds_to_maturity = asset_data["seconds_to_maturity"]
+        .as_u64()
+        .ok_or_else(|| eyre!("seconds_to_maturity must be a number"))?
+        as u32;
+    let minimum_seconds_to_deadline = asset_data["minimum_seconds_to_deadline"]
+        .as_u64()
+        .ok_or_else(|| eyre!("minimum_seconds_to_deadline must be a number"))?
+        as u32;
+    let min_discount = asset_data["min_discount"]
+        .as_u64()
+        .ok_or_else(|| eyre!("min_discount must be a number"))? as u16;
+    let max_discount = asset_data["max_discount"]
+        .as_u64()
+        .ok_or_else(|| eyre!("max_discount must be a number"))? as u16;
+    let minimum_shares = asset_data["minimum_shares"]
+        .as_u64()
+        .ok_or_else(|| eyre!("minimum_shares must be a number"))? as u128;
 
-    if current_withdraw_data.allowWithdraws != new_allow_withdraws {
-        if new_allow_withdraws {
+    if allow_withdraws != current_withdraw_data.allowWithdraws
+        || seconds_to_maturity != current_withdraw_data.secondsToMaturity.to::<u32>()
+        || minimum_seconds_to_deadline != current_withdraw_data.minimumSecondsToDeadline.to::<u32>()
+        || min_discount != current_withdraw_data.minDiscount
+        || max_discount != current_withdraw_data.maxDiscount
+        || minimum_shares != current_withdraw_data.minimumShares.to::<u128>()
+    {
+        // Something is different, so we need to update it.
+        if allow_withdraws {
             let seconds_to_maturity = asset_data["seconds_to_maturity"]
                 .as_u64()
                 .ok_or_else(|| eyre!("seconds_to_maturity must be a number"))?
