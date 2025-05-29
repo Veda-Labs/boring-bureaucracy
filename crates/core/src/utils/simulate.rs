@@ -141,7 +141,8 @@ pub async fn simulate_admin_tx_and_generate_safe_hash(
                 account_slug, project_slug, simulation_id
             )
         })
-        .ok_or_else(|| eyre::eyre!("Simulation ID not found in response"))?;
+        .unwrap_or("Simulation Failed".to_string());
+    // .ok_or_else(|| eyre::eyre!("Simulation ID not found in response"))?;
 
     Ok((simulation_url, safe_hash))
 }
