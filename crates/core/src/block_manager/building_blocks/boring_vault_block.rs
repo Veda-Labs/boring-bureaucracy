@@ -1,20 +1,19 @@
 use super::block_utils::*;
 use super::building_block::BuildingBlock;
-use crate::actions::action::Action;
-use crate::actions::sender_type::SenderType;
-use crate::actions::{
-    deploy_contract_action::DeployContract, set_role_capability_action::SetRoleCapabilityAction,
+use crate::{
+    actions::{action::Action, deploy_contract_action::DeployContract, sender_type::SenderType},
+    bindings::{auth::Auth, boring_vault::BoringVault},
+    block_manager::shared_cache::{CacheValue, SharedCache},
+    bytecode::BORING_VAULT_BYTECODE,
+    constants::roles,
+    utils::address_or_contract_name::{AddressOrContractName, derive_contract_address},
+    utils::view_request_manager::ViewRequestManager,
 };
-use crate::bindings::boring_vault::BoringVault;
-use crate::block_manager::shared_cache::{CacheValue, SharedCache};
-use crate::bytecode::BORING_VAULT_BYTECODE;
-use crate::utils::address_or_contract_name::{AddressOrContractName, derive_contract_address};
-use crate::utils::view_request_manager::ViewRequestManager;
-use alloy::primitives::{Address, Bytes, U256, aliases::B32};
-use alloy::sol_types::SolCall;
-use alloy::sol_types::SolConstructor;
+use alloy::primitives::{Address, Bytes, U256};
+use alloy::sol_types::{SolCall, SolConstructor};
 use building_block_derive::BuildingBlockCache;
-use eyre::Result;
+use eyre::{Result, eyre};
+use log::error;
 use serde::Deserialize;
 
 #[derive(BuildingBlockCache, Debug, Deserialize)]
@@ -47,6 +46,8 @@ pub struct BoringVaultBlock {
 // TODO how do we verify after deployment???
 // TODO could probably use util funcitons for shared logic between building blocks
 // TODO create roles authority building block
+
+const ACTION_PRIORITY: u32 = 1;
 
 impl BoringVaultBlock {
     async fn derive_boring_vault_name(
@@ -154,6 +155,9 @@ impl BoringVaultBlock {
         // if yes, make sure roles are correct
         // if no, configure all roles
 
+        // Get bundler if exists.
+        let bundler = cache.get_address("bundler").await;
+
         // Check if boring vault is deployed.
         let boring_vault = cache.get_address("boring_vault").await.unwrap();
         let is_deployed = vrm.request_code(boring_vault).await?.len() > 0;
@@ -188,30 +192,93 @@ impl BoringVaultBlock {
             actions.push(Box::new(deploy_boring_vault_action));
         }
 
+        let roles_authority = cache.get_address("roles_authority").await.unwrap();
+        let is_roles_authority_deployed = vrm.request_code(roles_authority).await?.len() > 0;
+
+        // Determine who the sender is for setting up roles authority.
+        let sender = if !is_roles_authority_deployed {
+            if let Some(bundler) = bundler {
+                // Sender is the bundler
+                SenderType::Bundler(bundler)
+            } else {
+                // Sender should be an EOA executor
+                let executor = cache.get_address("executor").await.unwrap();
+                SenderType::EOA(executor)
+            }
+        } else {
+            // Contract is deployed so determine who has the ability to make this call.
+            if let Some(timelock) = cache.get_address("timelock").await {
+                SenderType::Timelock(timelock)
+            } else if let Some(multisig) = cache.get_address("multisig").await {
+                SenderType::Multisig(multisig)
+            } else {
+                error!("Unable to determine sender type");
+                return Err(eyre!("Can not determine sender type"));
+            }
+        };
+
         // TODO now add all roles auth actions
         // Check if role is configured properly, if not add it
         // Setup roles to manage vault.
-        let roles_authority = cache.get_address("roles_authority").await.unwrap();
-        if does_role_have_capability(
+        grant_roles_capabilities(
+            &mut actions,
             roles_authority,
-            3,
-            boring_vault,
-            B32::from(BoringVault::manage_0Call::SELECTOR),
+            vec![
+                (
+                    roles::MANAGER,
+                    boring_vault,
+                    BoringVault::manage_0Call::SIGNATURE,
+                ),
+                (
+                    roles::MANAGER,
+                    boring_vault,
+                    BoringVault::manage_1Call::SIGNATURE,
+                ),
+                (
+                    roles::MINTER,
+                    boring_vault,
+                    BoringVault::enterCall::SIGNATURE,
+                ),
+                (
+                    roles::BURNER,
+                    boring_vault,
+                    BoringVault::exitCall::SIGNATURE,
+                ),
+                (
+                    roles::OWNER,
+                    boring_vault,
+                    BoringVault::setBeforeTransferHookCall::SIGNATURE,
+                ),
+                (
+                    roles::OWNER,
+                    boring_vault,
+                    Auth::transferOwnershipCall::SIGNATURE,
+                ),
+                (
+                    roles::OWNER,
+                    boring_vault,
+                    Auth::setAuthorityCall::SIGNATURE,
+                ),
+            ],
             vrm,
+            ACTION_PRIORITY,
+            sender,
         )
-        .await?
-        {
-            let action = SetRoleCapabilityAction::new_action(
-                roles_authority,
-                3,
-                boring_vault,
-                BoringVault::manage_0Call::SIGNATURE.to_string(),
-                true,
-                1,
-                SenderType::EOA(Address::ZERO),
-            );
-            actions.push(Box::new(action));
-        }
+        .await?;
+
+        grant_users_roles(
+            &mut actions,
+            roles_authority,
+            vec![
+                (cache.get_address("manager").await.unwrap(), roles::MANAGER),
+                (cache.get_address("teller").await.unwrap(), roles::MINTER),
+                (cache.get_address("teller").await.unwrap(), roles::BURNER),
+            ],
+            vrm,
+            ACTION_PRIORITY,
+            sender,
+        )
+        .await?;
 
         // Then if hook is Some, set it
 

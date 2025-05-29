@@ -1184,6 +1184,7 @@ dependencies = [
  "building_block_derive",
  "dotenv",
  "eyre",
+ "futures",
  "hex",
  "into_trait",
  "log",

@@ -8,8 +8,8 @@ use super::building_blocks::{building_block::BuildingBlock, building_blocks::Bui
 use crate::actions::action::Action;
 use crate::actions::sender_type::SenderType;
 use crate::actions::{
-    multisend_meta_action::MultisendMetaAction, multisig_meta_action::MultisigMetaAction,
-    timelock_meta_action::TimelockMetaAction,
+    bundler_meta_action::BundlerMetaAction, multisend_meta_action::MultisendMetaAction,
+    multisig_meta_action::MultisigMetaAction, timelock_meta_action::TimelockMetaAction,
 };
 use crate::block_manager::shared_cache::{SharedCache, SharedCacheRef};
 use crate::utils::view_request_manager::{ViewRequestManager, ViewRequestManagerRef};
@@ -287,6 +287,17 @@ impl BlockManager {
                                             SenderType::Multisig(timelock_admin),
                                         )
                                         .await?;
+                                        meta_actions.push(Box::new(meta_action));
+                                    }
+                                }
+                                SenderType::Bundler(bundler) => {
+                                    if chunk_transition {
+                                        // Batch current chunk into a Bundler meta action
+                                        let meta_action = BundlerMetaAction::new(
+                                            executor,
+                                            bundler,
+                                            std::mem::take(&mut current_chunk),
+                                        )?;
                                         meta_actions.push(Box::new(meta_action));
                                     }
                                 }

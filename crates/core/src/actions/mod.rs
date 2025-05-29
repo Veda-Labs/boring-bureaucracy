@@ -1,6 +1,7 @@
 pub mod action;
 pub mod add_asset_action;
 pub mod admin_action;
+pub mod bundler_meta_action;
 pub mod deploy_contract_action;
 pub mod meta_action;
 pub mod multisend_meta_action;

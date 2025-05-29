@@ -1,28 +1,40 @@
+use super::sender_type::SenderType;
 use alloy::primitives::{Address, Bytes};
 use alloy::sol_types::SolCall;
 use serde_json::{Value, json};
 
-use crate::{actions::admin_action::AdminAction, bindings::roles_authority::RolesAuthority};
+use crate::{actions::action::Action, bindings::roles_authority::RolesAuthority};
 
 pub struct SetUserRoleAction {
     roles_authority: Address,
     user: Address,
     role: u8,
     enabled: bool,
+    priority: u32,
+    sender: SenderType,
 }
 
 impl SetUserRoleAction {
-    pub fn new(roles_authority: Address, user: Address, role: u8, enabled: bool) -> Self {
+    pub fn new(
+        roles_authority: Address,
+        user: Address,
+        role: u8,
+        enabled: bool,
+        priority: u32,
+        sender: SenderType,
+    ) -> Self {
         Self {
             roles_authority,
             user,
             role,
             enabled,
+            priority,
+            sender,
         }
     }
 }
 
-impl AdminAction for SetUserRoleAction {
+impl Action for SetUserRoleAction {
     fn target(&self) -> Address {
         self.roles_authority
     }
