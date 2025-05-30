@@ -10,6 +10,7 @@
 21000000 = "https://mainnet.corn-rpc.com"
 14 = "env:FLARE_RPC_URL"
 130 = "https://0xrpc.io/uni"
+98866 = "env:PLUME_RPC_URL"
 
 [block_explorers]
 1 = "https://etherscan.io/"
@@ -23,6 +24,7 @@
 21000000 = "https://cornscan.io/"
 14 = "https://flarescan.com/"
 130 = "https://uniscan.xyz/"
+98866 = "https://explorer.plume.org"
 
 [multi_send_address]
 default = "40A2aCCbd92BCA938b02010E17A5b8929b49130D"
@@ -520,6 +522,36 @@ accountant_address = "0x80f0B206B7E5dAa1b1ba4ea1478A33241ee6baC9"
 teller_address = "0x60EBb5d1454Bb99aa35F63F609E79179b342B0b8"
 roles_authority_address = "0x754213aFB8ecb6D15F169bfD378Fb685f5cB0d4A"
 queue_address = "0x9ec26125feCdE8CE5c67346dB2E20C9026225440"
+strategists = ["0xc953272E8573bd3e526A62f6B43aE7bBE0EdF1B0", "0x0C06409DDe96E758adDADd6Aefe3f49bA6DC4657"]
+
+[product.royco_usd_2nd_msig.1]
+multisig_address = "0xeF2303aa919421770327d93fFE111289Be2Da132"
+vault_address = "0x74D1fAfa4e0163b2f1035F1b052137F3f9baD5cC"
+manager_address = "0xD4F870516a3B67b64238Bb803392Cd1A52D54Fb2"
+accountant_address = "0x80f0B206B7E5dAa1b1ba4ea1478A33241ee6baC9"
+teller_address = "0x60EBb5d1454Bb99aa35F63F609E79179b342B0b8"
+roles_authority_address = "0x754213aFB8ecb6D15F169bfD378Fb685f5cB0d4A"
+queue_address = "0x9ec26125feCdE8CE5c67346dB2E20C9026225440"
+strategists = ["0xc953272E8573bd3e526A62f6B43aE7bBE0EdF1B0", "0x0C06409DDe96E758adDADd6Aefe3f49bA6DC4657"]
+
+[product.royco_usd_2nd_msig.98866]
+multisig_address = "0x9019a4F4C1139Abc69128E2447a6ea0E5989E0fe"
+vault_address = "0x74D1fAfa4e0163b2f1035F1b052137F3f9baD5cC"
+manager_address = "0xD4F870516a3B67b64238Bb803392Cd1A52D54Fb2"
+accountant_address = "0x80f0B206B7E5dAa1b1ba4ea1478A33241ee6baC9"
+teller_address = "0x60EBb5d1454Bb99aa35F63F609E79179b342B0b8"
+roles_authority_address = "0x754213aFB8ecb6D15F169bfD378Fb685f5cB0d4A"
+queue_address = "0x9ec26125feCdE8CE5c67346dB2E20C9026225440"
+strategists = ["0xc953272E8573bd3e526A62f6B43aE7bBE0EdF1B0", "0x0C06409DDe96E758adDADd6Aefe3f49bA6DC4657"]
+
+[product.royco_usd_plume_2nd_msig.98866]
+multisig_address = "0x9019a4F4C1139Abc69128E2447a6ea0E5989E0fe"
+vault_address = "0x83A6F6034ee44De6648B1885e24D837D8D98698f"
+manager_address = "0xe942A366Ccb629939921b35e1382D2c9634146cE"
+accountant_address = "0xfFfBF5B884AdF7297B94e62535D1b031387041Bd"
+teller_address = "0x4Fc294112fD0b7226ecA095FEE9909E30882Cb11"
+roles_authority_address = "0x8dA85FC312fD0fa30d4bF0FB53Fd1228dB63a1c0"
+queue_address = "0x21AED7ab1f40710193ac26EAbD0E1E4b2b2EDd72"
 strategists = ["0xc953272E8573bd3e526A62f6B43aE7bBE0EdF1B0", "0x0C06409DDe96E758adDADd6Aefe3f49bA6DC4657"]
 
 [product.royco_usd.146]
