@@ -44,6 +44,33 @@ strategists = [
     "0x71E2d6c34f569cC4Df5802d675B208FB8AE3Bcd6",
 ]
 
+[product.liquid_eth.8453]
+multisig_address = "0x183fE88858AAB892cc796662200374e3dF6927E3"
+vault_address = "0xf0bb20865277aBd641a307eCe5Ee04E79073416C"
+manager_address = "0x227975088C28DBBb4b421c6d96781a53578f19a8"
+accountant_address = "0x0d05D94a5F1E76C18fbeB7A13d17C8a314088198"
+teller_address = "0x9AA79C84b79816ab920bBcE20f8f74557B514734"
+roles_authority_address = "0xd83C1C5050f73bbaaa2036F2e0D73163D180C123"
+timelock = "0x43119CE1741bb02E3FC191e04775731537E9f5A9"
+strategists = [
+    "0x560441fA211AEd16Dd49f70c226380c9D4875225",
+    "0x65716abB00Ec074c3c1991a213b41cdc54E8212B"
+]
+
+
+[product.liquid_eth.130]
+multisig_address = "0x183fE88858AAB892cc796662200374e3dF6927E3"
+vault_address = "0xf0bb20865277aBd641a307eCe5Ee04E79073416C"
+manager_address = "0xDEa7AF4a96A762c9d43A7eE02acecD20A3C6D8B6"
+accountant_address = "0x0d05D94a5F1E76C18fbeB7A13d17C8a314088198"
+teller_address = "0x9AA79C84b79816ab920bBcE20f8f74557B514734"
+roles_authority_address = "0xd83C1C5050f73bbaaa2036F2e0D73163D180C123"
+timelock = "0x43119CE1741bb02E3FC191e04775731537E9f5A9"
+strategists = [
+    "0x560441fA211AEd16Dd49f70c226380c9D4875225",
+    "0x65716abB00Ec074c3c1991a213b41cdc54E8212B"
+]
+
 [product.liquid_eth.1923]
 multisig_address = "0x3FF1db55460125C667f5d2c68aAaBdeDf3FB2948"
 vault_address = "0xf0bb20865277aBd641a307eCe5Ee04E79073416C"
@@ -608,3 +635,18 @@ strategists = [
     "0xE89CeE9837e6Fce3b1Ebd8E1C779b76fd6E20136",
     "0x8909A629bA2E0Db0b51E06fEB2730d75651Bb06E",
 ]
+
+[product.golden_goose.130]
+multisig_address = "0xD48b7e87fDCCaCa7ea93F347755c799eBE0fD35F"
+vault_address = "0xef417FCE1883c6653E7dC6AF7c6F85CCDE84Aa09"
+manager_address = "0x5F341B1cf8C5949d6bE144A725c22383a5D3880B"
+accountant_address = "0xc873F2b7b3BA0a7faA2B56e210E3B965f2b618f5"
+teller_address = "0xE89fAaf3968ACa5dCB054D4a9287E54aa84F67e9"
+roles_authority_address = "0x9778D78495cBbfce0B1F6194526a8c3D4b9C3AAF"
+queue_address = "0xe39682c3C44b73285A2556D4869041e674d1a6B7"
+timelock = "0x130ca661b9c0bcbcd1204adf9061a569d5e0ca24"
+strategists = [
+    "0xc9d0b348Bb4f83b5a90628E43011A17e32d48bB7",
+    "0xdD1E10C627ccA546AF82450ea11f259528fDd8e1"
+]
+

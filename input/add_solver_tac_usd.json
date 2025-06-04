@@ -1,0 +1,25 @@
+{
+  "network_id": 146,
+  "nonce": 59,
+  "actions": [
+    {
+      "product": "stksc_usd",
+      "update_solver": {
+        "setup": true,
+        "solver_contract": "0xb44083Bf3CDd5e8272E901d27CF67904Dbf2a655",
+        "allow_self_solves": true
+      }
+    },
+    {
+      "product": "stksc_usd",
+      "new_roles": [
+        {
+          "action_type": "setUserRole",
+          "user": "0x7C0eC8751f6Fa02e1a28B53Cc9dA1277829923fB",
+          "role_id": 32,
+          "enabled": true
+        }
+      ]
+    }
+  ]
+}
