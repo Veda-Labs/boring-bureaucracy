@@ -1,0 +1,56 @@
+{
+  "network_id": 1,
+  "nonce": 6,
+  "actions": [
+    {
+      "product": "tac_usd",
+      "new_roles": [
+        {
+          "action_type": "setRoleCapability",
+          "role_id": 32,
+          "target_contract": "0x61fCb09dA8b83d215023075CA9E70877F1D048fF",
+          "function_signature": "boringSolve(address,address,address,uint256,uint256,bytes)",
+          "enabled": false
+        },
+        {
+          "action_type": "setRoleCapability",
+          "role_id": 33,
+          "target_contract": "0x61fCb09dA8b83d215023075CA9E70877F1D048fF",
+          "function_signature": "boringRedeemSolve((uint96,address,address,uint128,uint128,uint40,uint24,uint24)[],address,bool)",
+          "enabled": false
+        },
+        {
+          "action_type": "setRoleCapability",
+          "role_id": 33,
+          "target_contract": "0x61fCb09dA8b83d215023075CA9E70877F1D048fF",
+          "function_signature": "boringRedeemMintSolve((uint96,address,address,uint128,uint128,uint40,uint24,uint24)[],address,address,address,bool)",
+          "enabled": false
+        },
+        {
+          "action_type": "setUserRole",
+          "user": "0x61fCb09dA8b83d215023075CA9E70877F1D048fF",
+          "role_id": 31,
+          "enabled": false
+        },
+        {
+          "action_type": "setUserRole",
+          "user": "0x61fCb09dA8b83d215023075CA9E70877F1D048fF",
+          "role_id": 12,
+          "enabled": false
+        },
+        {
+          "action_type": "setPublicCapability",
+          "target_contract": "0x61fCb09dA8b83d215023075CA9E70877F1D048fF",
+          "function_signature": "boringRedeemSelfSolve((uint96,address,address,uint128,uint128,uint40,uint24,uint24),address)",
+          "enabled": false
+        },
+        {
+          "action_type": "setPublicCapability",
+          "target_contract": "0x61fCb09dA8b83d215023075CA9E70877F1D048fF",
+          "function_signature": "boringRedeemMintSelfSolve((uint96,address,address,uint128,uint128,uint40,uint24,uint24),address,address,address)",
+          "enabled": false
+        }
+      ]
+    }
+  ]
+}

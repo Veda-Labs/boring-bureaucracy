@@ -1,18 +1,10 @@
 {
-  "network_id": 1,
+  "network_id": 8453,
   "actions": [
     {
-      "new_root": "0x7ccf98e8e24b943b66c9199b29bd7af6177ca78e096b30f4eb2c9da8a6a3094d",
-      "product": "royco_usd"
-    },
-    {
-      "product": "royco_usd",
-      "update_strategist": {
-        "strategist_address": "0x9ec26125feCdE8CE5c67346dB2E20C9026225440",
-        "operation": "add_roles",
-        "roles": [32]
-      }
+      "new_root": "0x5359f1c8b245d6fda28b0bd93f437de206ce1ec86c698644e76d63077c4604a7",
+      "product": "liquid_eth"
     }
   ],
-  "nonce": 1
+  "nonce": 7
 }
