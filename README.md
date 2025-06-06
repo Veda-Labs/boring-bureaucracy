@@ -22,13 +22,21 @@ The tool integrates with Tenderly's simulation API to validate transactions befo
    cd boring-bureaucracy
    ```
 
-2. Copy the sample environment file
+2. Install [rust](https://www.rust-lang.org/tools/install)
+
+3. Copy the sample environment file
 
    ```bash
    cp sample.env .env
    ```
 
-3. Fill in the required environment variables in `.env`:
+4. Create the output directory
+
+   ```bash
+   mkdir output
+   ```
+
+5. Fill in the required environment variables in `.env`:
 
 - `TENDERLY_ACCESS_KEY`: Your Tenderly API access key
 - `TENDERLY_ACCOUNT_SLUG`: Your Tenderly account slug
@@ -37,7 +45,7 @@ The tool integrates with Tenderly's simulation API to validate transactions befo
 - `SONIC_RPC_URL`: Sonic RPC URL
 - `BOB_RPC_URL`: BOB RPC URL
 
-4. Build the project
+6. Build the project
 
 ```bash
 cargo build
