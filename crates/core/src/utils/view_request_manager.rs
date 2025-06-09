@@ -35,6 +35,7 @@ pub struct ViewRequestManager {
 // Create a type alias for the view request manager
 pub type ViewRequestManagerRef = Arc<ViewRequestManager>;
 
+// TODO I guess this needs to somehow take in multiple rpcs or something so we can do multichain deployments?
 impl ViewRequestManager {
     pub fn new<P>(num_workers: usize, provider: P, latest_block_number: u64) -> Self
     where
